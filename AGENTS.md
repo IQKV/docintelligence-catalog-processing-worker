@@ -23,7 +23,7 @@ project-root/
 │   │   │       ├── infrastructure/   # Infrastructure layer
 │   │   │       │   ├── config/       # Spring configuration
 │   │   │       │   ├── security/     # Security implementation
-│   │   │       │   ├── persistence/  # JPA repositories, adapters
+│   │   │       │   ├── persistence/  # Repositories, adapters
 │   │   │       │   └── messaging/    # Event publishers, message brokers
 │   │   │       ├── [bounded-context-1]/  # Example: user
 │   │   │       │   ├── domain/       # Domain layer (core business logic)
