@@ -18,9 +18,7 @@ package com.iqkv.foundation.aichatservice.shared.exception;
 
 import java.util.UUID;
 
-public class ChatSessionNotFoundException extends RuntimeException {
-
-  private static final long serialVersionUID = 1L;
+public class ChatSessionNotFoundException extends ResourceNotFoundException {
 
   public ChatSessionNotFoundException(final UUID id) {
     super("Chat session not found: " + id);
