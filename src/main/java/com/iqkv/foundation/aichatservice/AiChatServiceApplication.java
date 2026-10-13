@@ -18,9 +18,11 @@ package com.iqkv.foundation.aichatservice;
 
 import java.util.TimeZone;
 
+import net.javacrumbs.shedlock.spring.annotation.EnableSchedulerLock;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * Entry point for the AI Chat Service.
@@ -30,6 +32,8 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
  */
 @SpringBootApplication
 @ConfigurationPropertiesScan
+@EnableScheduling
+@EnableSchedulerLock(defaultLockAtMostFor = "PT55M")
 public class AiChatServiceApplication {
 
   public static void main(String[] args) {

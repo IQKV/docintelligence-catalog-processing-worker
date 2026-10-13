@@ -218,11 +218,14 @@ Before making recommendations, agents should understand the project's technology
 - Spring Boot 4.x
 - Maven for build management
 
-**Data & Caching**
+**Data & Persistence**
 
-- Database: PostgreSQL/MySQL/H2 (check project configuration)
-- Spring Data JPA with Hibernate
-- Redis for caching (if configured)
+- Database: PostgreSQL (production), H2 (test scope — smoke context-load only)
+- **MyBatis** with XML mappers — there is no Spring Data JPA / Hibernate in this project
+- `mybatis.configuration.map-underscore-to-camel-case=true` is enabled globally
+- Mapper interfaces annotated with `@Mapper`; XML mapper files in `src/main/resources/mappers/<context>/`
+- Liquibase for schema migrations (`db/changelog/system/db.changelog-system.xml`)
+- **ShedLock** (`shedlock-spring` + `shedlock-provider-jdbc-template`) for distributed scheduled job locking
 
 **Security**
 
@@ -242,11 +245,16 @@ Before making recommendations, agents should understand the project's technology
 - SpringDoc OpenAPI 3
 - Swagger UI
 
+**AI**
+
+- Spring AI (`spring-ai-starter-model-ollama`) — Ollama-backed chat completions
+- Chat sessions and messages stored in `public.chat_sessions` / `public.chat_messages`
+
 **Build & Deployment**
 
 - Maven 3.9.0+
-- Docker (if Dockerfile present)
-- Environment profiles: local, staging, production
+- Docker (Dockerfile present)
+- Environment profiles: `local`, `sit`, `uat`, `prd`
 
 ## 📋 Development Standards
 
@@ -510,29 +518,34 @@ public class UserController {
 
 **Unit Tests - AAA Pattern:**
 
+Use `@ExtendWith(MockitoExtension.class)`. Inject all dependencies via constructor — **do not use `@InjectMocks`**. Instantiate the class under test manually in `@BeforeEach`.
+
 ```java
 @ExtendWith(MockitoExtension.class)
-class UserServiceTest {
+class ChatServiceImplTest {
 
   @Mock
-  private UserRepository userRepository;
+  private ChatSessionMapper chatSessionMapper;
+  @Mock
+  private ChatMessageMapper chatMessageMapper;
 
-  @InjectMocks
-  private UserService userService;
+  private ChatServiceImpl chatService;
+
+  @BeforeEach
+  void setUp() {
+    chatService = new ChatServiceImpl(chatSessionMapper, chatMessageMapper);
+  }
 
   @Test
-  @DisplayName("Should create user successfully")
-  void shouldCreateUser() {
+  @DisplayName("Should throw when session not found")
+  void shouldThrowWhenSessionNotFound() {
     // Arrange
-    var command = new UserCreateCommand("john.doe", "john@example.com");
-    when(userRepository.save(any(User.class))).thenAnswer((i) -> i.getArgument(0));
+    final var id = UUID.randomUUID();
+    when(chatSessionMapper.findById(id)).thenReturn(Optional.empty());
 
-    // Act
-    var result = userService.createUser(command);
-
-    // Assert
-    assertThat(result.username()).isEqualTo("john.doe");
-    verify(userRepository).save(any(User.class));
+    // Act & Assert
+    assertThatThrownBy(() -> chatService.getSession(id))
+        .isInstanceOf(ResourceNotFoundException.class);
   }
 }
 ```
@@ -568,19 +581,13 @@ class UserServiceIntegrationTest {
 **Architecture Tests with ArchUnit:**
 
 ```java
-@AnalyzeClasses(packages = "com.example.project")
-class ArchitectureTest {
+@AnalyzeClasses(packagesOf = AiChatServiceApplication.class, importOptions = DoNotIncludeTests.class)
+class TechnicalStructureTest {
 
   @ArchTest
-  static final ArchRule servicesOnlyAccessedByControllersOrServices = classes()
-    .that()
-    .resideInAPackage("..service..")
-    .should()
-    .onlyBeAccessed()
-    .byAnyPackage("..controller..", "..service..", "..config..");
-
-  @ArchTest
-  static final ArchRule repositoriesShouldBeInterfaces = classes().that().resideInAPackage("..repository..").should().beInterfaces();
+  static final ArchRule respectsTechnicalArchitectureLayers = onionArchitecture()
+      .withOptionalLayers(true)
+      .ignoreDependency(belongToAnyOf(AiChatServiceApplication.class), alwaysTrue());
 }
 ```
 
@@ -858,7 +865,7 @@ jobs:
               run: mvn clean verify
 
             - name: Upload Coverage
-              uses: codecov/codecov-action@v3
+              uses: codecov/codecov-action@v4
               with:
                   files: target/site/jacoco/jacoco.xml
 ```
