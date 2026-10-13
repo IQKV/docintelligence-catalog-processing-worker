@@ -10,5 +10,6 @@
          not tenant-scoped. Add <include> entries below in timestamp order. -->
 
     <include file="db/changelog/system/20261005100000-initial-schema.xml"/>
+    <include file="db/changelog/system/20261013120000-create-shedlock-table.xml"/>
 
 </databaseChangeLog>
