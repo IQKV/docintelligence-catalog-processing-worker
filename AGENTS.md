@@ -874,6 +874,37 @@ mvn checkstyle:check
 mvn test -Dtest=*ArchitectureTest
 ```
 
+## 🧪 Evaluation
+
+How we judge whether an agent task in this repository is actually done. Evaluation is evidence-based — a claim without the command and its observed result is not a pass.
+
+> This section starts minimal and grows with the repository. Add a gate only when a change type repeatedly slips through without it.
+
+### Definition of done
+
+A task is evaluated as done only when all of the following hold:
+
+- Every gate required by the change type below has run and passed.
+- The final report names the exact command(s) run and the observed result (pass/fail) — per AI Communication Standards.
+- No required gate was skipped silently. A gate that could not run is reported as a gap, never as a pass.
+
+### Required gates by change type
+
+| Change type | Required gates |
+| --- | --- |
+| Any change | `./mvnw -q compile`, then the narrowest targeted `./mvnw test -Dtest=ClassName` |
+| Domain / application / service logic | Unit tests (JUnit 5 + Mockito, AAA); a new non-trivial branch, loop or parser needs a test |
+| MyBatis mapper (interface or XML) | Service-level test covering the mapper path, then full `./mvnw verify` |
+| REST controller, Spring Security, `@PreAuthorize`, tenant guard | Security test, then full `./mvnw verify` |
+| Liquibase changelog | Full `./mvnw verify` — the Spring context and schema must load cleanly |
+| Package/layer move, new bounded context | ArchUnit `TechnicalStructureTest`, then full `./mvnw verify` |
+| Dependency or build config | Full `./mvnw verify` |
+| Docs or `AGENTS.md` only | No code gate — state that none applies |
+
+### Ordering
+
+Run the narrowest relevant gate first, then the full `./mvnw verify`. On the first failure, stop and report it — do not continue on an unproven base (see Execution Discipline).
+
 ## 🚀 CI/CD Pipeline
 
 ### Recommended GitHub Actions Workflow
