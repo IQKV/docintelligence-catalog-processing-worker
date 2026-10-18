@@ -890,16 +890,16 @@ A task is evaluated as done only when all of the following hold:
 
 ### Required gates by change type
 
-| Change type | Required gates |
-| --- | --- |
-| Any change | `./mvnw -q compile`, then the narrowest targeted `./mvnw test -Dtest=ClassName` |
-| Domain / application / service logic | Unit tests (JUnit 5 + Mockito, AAA); a new non-trivial branch, loop or parser needs a test |
-| MyBatis mapper (interface or XML) | Service-level test covering the mapper path, then full `./mvnw verify` |
-| REST controller, Spring Security, `@PreAuthorize`, tenant guard | Security test, then full `./mvnw verify` |
-| Liquibase changelog | Full `./mvnw verify` — the Spring context and schema must load cleanly |
-| Package/layer move, new bounded context | ArchUnit `TechnicalStructureTest`, then full `./mvnw verify` |
-| Dependency or build config | Full `./mvnw verify` |
-| Docs or `AGENTS.md` only | No code gate — state that none applies |
+| Change type                                                     | Required gates                                                                             |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Any change                                                      | `./mvnw -q compile`, then the narrowest targeted `./mvnw test -Dtest=ClassName`            |
+| Domain / application / service logic                            | Unit tests (JUnit 5 + Mockito, AAA); a new non-trivial branch, loop or parser needs a test |
+| MyBatis mapper (interface or XML)                               | Service-level test covering the mapper path, then full `./mvnw verify`                     |
+| REST controller, Spring Security, `@PreAuthorize`, tenant guard | Security test, then full `./mvnw verify`                                                   |
+| Liquibase changelog                                             | Full `./mvnw verify` — the Spring context and schema must load cleanly                     |
+| Package/layer move, new bounded context                         | ArchUnit `TechnicalStructureTest`, then full `./mvnw verify`                               |
+| Dependency or build config                                      | Full `./mvnw verify`                                                                       |
+| Docs or `AGENTS.md` only                                        | No code gate — state that none applies                                                     |
 
 ### Ordering
 
