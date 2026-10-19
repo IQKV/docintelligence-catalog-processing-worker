@@ -1,4 +1,4 @@
-# Document Intelligence Catalog Service �
+# Document Intelligence Catalog Service 📇
 
 > **Template skeleton.** Replace this content when you create your repository from the template.
 > Repository development details live in [`README.md`](./README.md).
@@ -11,9 +11,9 @@ This service provides:
 
 - **Ollama connectivity** — LLM client pre-wired to a local Ollama instance via `spring.ai.ollama.*` (base URL and model configurable per environment)
 - **Multi-tenant isolation** — tenant context resolved from the `X-Tenant-ID` header or the JWT `tenant_id` claim before every request
-- **Persistence** — data stored in PostgreSQL via MyBatis; Liquibase manages schema migrations
+- **Persistence** — data stored in PostgreSQL via MyBatis; Liquibase manages system and per-tenant schema migrations
 - **Security** — stateless JWT resource server (RS256); public endpoints can be exposed while admin endpoints require `PLATFORM_ADMIN` authority
-- **Messaging** — RabbitMQ consumer for tenant provisioning events, gated by `iqkv.messaging.rabbitmq.enabled`
+- **Messaging** — RabbitMQ consumer for IAM tenant provisioning events (`tenant.created` / `tenant.updated`) on `docintelligence.catalog.tenant.provisioning`, gated by `iqkv.messaging.rabbitmq.enabled`
 
 ## Quick Links
 
@@ -43,6 +43,12 @@ Base path: `/api/v1/catalog`
 - RabbitMQ for async messaging
 - Spring Security + OAuth2 Resource Server (RS256 JWT)
 - Micrometer + Prometheus
+
+## Observability
+
+- **Actuator endpoints** — `health` (liveness + readiness probes), `info`, `metrics`, and `prometheus` exposed on the management port (`8081`)
+- **Structured logging** — JSON log output via the Logstash encoder; every request carries a correlation ID set by `CorrelationIdFilter`
+- **Metrics** — no service-specific custom meters yet; the Micrometer/Prometheus registry exposes the standard JVM, HTTP, and Spring Boot meters
 
 ## Prerequisites
 
@@ -86,12 +92,12 @@ docker compose up -d
 | `DB_HOST`                             | `localhost`              | PostgreSQL host                               |
 | `DB_PORT`                             | `5432`                   | PostgreSQL port                               |
 | `DB_NAME`                             | `catalogservice`         | Database name                                 |
-| `DB_USERNAME`                         | `svc_catalog_dba`         | Database user                                 |
-| `DB_PASSWORD`                         | `svc_catalog_dba`         | Database password                             |
+| `DB_USERNAME`                         | `svc_catalog_dba`        | Database user                                 |
+| `DB_PASSWORD`                         | `svc_catalog_dba`        | Database password                             |
 | `RABBITMQ_HOST`                       | `localhost`              | RabbitMQ host                                 |
 | `RABBITMQ_PORT`                       | `5672`                   | RabbitMQ AMQP port                            |
-| `RABBITMQ_USERNAME`                   | `svc_catalog_rmq`         | RabbitMQ user                                 |
-| `RABBITMQ_PASSWORD`                   | `svc_catalog_rmq`         | RabbitMQ password                             |
+| `RABBITMQ_USERNAME`                   | `svc_catalog_rmq`        | RabbitMQ user                                 |
+| `RABBITMQ_PASSWORD`                   | `svc_catalog_rmq`        | RabbitMQ password                             |
 | `MAIL_HOST`                           | `localhost`              | SMTP host                                     |
 | `MAIL_PORT`                           | `1025`                   | SMTP port (MailHog default)                   |
 | `MAIL_FROM`                           | `noreply@iqkv.dev`       | Sender address                                |
@@ -164,8 +170,8 @@ Please read our [Contributing Guidelines](.github/CONTRIBUTING.md) and [Code of 
 ## 🧩 Architecture
 
 - **Ollama**: LLM connectivity configured via `spring.ai.ollama.*` (`SPRING_AI_OLLAMA_BASE_URL`, `SPRING_AI_OLLAMA_CHAT_OPTIONS_MODEL`)
-- **Persistence**: MyBatis with XML mappers + PostgreSQL; Liquibase manages schema migrations
-- **Messaging**: RabbitMQ consumer for tenant provisioning events; `iqkv.messaging.rabbitmq.enabled` toggle — disabled in base profile, enabled per environment
+- **Persistence**: MyBatis with XML mappers + PostgreSQL; Liquibase manages system and per-tenant schema migrations
+- **Messaging**: RabbitMQ consumer for IAM tenant provisioning events (`tenant.created` / `tenant.updated`) bound to the shared `iqkv.events` exchange; `iqkv.messaging.rabbitmq.enabled` toggle — disabled in base profile, enabled per environment
 - **Security**: Spring Security + OAuth2 Resource Server; RS256 JWT validated via public key or JWKS URI; `@PreAuthorize` on protected endpoints; tenant context resolved before request handling
 - **Multi-tenancy**: `ROLLOUT_MODE` (`MULTI_TENANT` | `SINGLE_TENANT`) — must be identical across all platform services
 - **Observability**: Micrometer + Prometheus; structured JSON logging with Logstash encoder; health probes for Kubernetes readiness/liveness

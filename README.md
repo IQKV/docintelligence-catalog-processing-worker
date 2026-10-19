@@ -13,6 +13,7 @@ This template provides:
 - **Dockerfile** — multi-stage build with layered JAR extraction, non-root `appuser`, and JVM tuning
 - **Database Initialization** — `docker/postgres/init-catalog.sql` for automated schema and extension setup
 - **Security** — Spring Security + OAuth2 Resource Server (RS256 JWT) pre-configured
+- **Messaging** — RabbitMQ consumer for IAM tenant provisioning events (`tenant.created` / `tenant.updated`) with bounded retries and a dead-letter queue
 - **Observability** — Micrometer + Prometheus + structured JSON logging (Logstash encoder)
 - **Quality tools** — Checkstyle, JaCoCo, ArchUnit, Husky git hooks, commitlint
 
@@ -87,12 +88,12 @@ docker compose up -d
 | `DB_HOST`                             | `localhost`              | PostgreSQL host                       |
 | `DB_PORT`                             | `5432`                   | PostgreSQL port                       |
 | `DB_NAME`                             | `catalogservice`         | Database name                         |
-| `DB_USERNAME`                         | `svc_catalog_dba`         | Database user                         |
-| `DB_PASSWORD`                         | `svc_catalog_dba`         | Database password                     |
+| `DB_USERNAME`                         | `svc_catalog_dba`        | Database user                         |
+| `DB_PASSWORD`                         | `svc_catalog_dba`        | Database password                     |
 | `RABBITMQ_HOST`                       | `localhost`              | RabbitMQ host                         |
 | `RABBITMQ_PORT`                       | `5672`                   | RabbitMQ AMQP port                    |
-| `RABBITMQ_USERNAME`                   | `svc_catalog_rmq`         | RabbitMQ user                         |
-| `RABBITMQ_PASSWORD`                   | `svc_catalog_rmq`         | RabbitMQ password                     |
+| `RABBITMQ_USERNAME`                   | `svc_catalog_rmq`        | RabbitMQ user                         |
+| `RABBITMQ_PASSWORD`                   | `svc_catalog_rmq`        | RabbitMQ password                     |
 | `MAIL_HOST`                           | `localhost`              | SMTP host (MailHog)                   |
 | `MAIL_PORT`                           | `1025`                   | SMTP port                             |
 | `MAIL_FROM`                           | `noreply@iqkv.dev`       | Default sender email                  |
@@ -146,15 +147,13 @@ docker compose -f compose.container.yaml up -d
 ```
 .
 ├── docker/
-│   ├── postgres/       # DB initialization scripts
+│   ├── postgres/       # DB initialization scripts (init-catalog.sql)
 │   ├── prometheus/     # Prometheus configuration
 │   └── grafana/        # Grafana dashboards and datasources
-├── src/main/java/com/iqkv/foundation/catalogservice/
-│   ├── {domain}/       # Feature module (vertical slice)
-│   │   ├── {Entity}.java
-│   │   ├── {Entity}Service.java
-│   │   ├── {Entity}RestResource.java
-│   │   └── dto/
+├── src/main/java/com/iqkv/docintelligence/catalogservice/
+│   ├── ping/           # Feature module (vertical slice) — reachability probes
+│   │   ├── PingDtos.java
+│   │   └── PingRestResource.java
 │   ├── infrastructure/ # Spring config, security, MyBatis, RabbitMQ setup
 │   └── shared/         # Common exceptions, utilities, value objects
 ```
@@ -192,7 +191,7 @@ Please read our [Contributing Guidelines](.github/CONTRIBUTING.md) and [Code of 
 
 - **Ollama**: LLM connectivity configured via `spring.ai.ollama.*` (`SPRING_AI_OLLAMA_BASE_URL`, `SPRING_AI_OLLAMA_CHAT_OPTIONS_MODEL`)
 - **Persistence**: MyBatis with XML mappers + PostgreSQL; Liquibase manages schema migrations
-- **Messaging**: RabbitMQ consumer/publisher; `iqkv.messaging.rabbitmq.enabled` toggle — disabled in base, enabled per profile
+- **Messaging**: RabbitMQ consumer for IAM tenant provisioning events (`tenant.created` / `tenant.updated`) bound to the shared `iqkv.events` exchange; `iqkv.messaging.rabbitmq.enabled` toggle — disabled in base, enabled per profile
 - **Security**: Spring Security + OAuth2 Resource Server; RS256 JWT validated via public key; `@PreAuthorize` on every endpoint
 - **Multi-tenancy**: `ROLLOUT_MODE` (`MULTI_TENANT` | `SINGLE_TENANT`) — must be identical across all platform services
 - **Credential convention**: DB users follow `svc_{service}_dba`, RabbitMQ users follow `svc_{service}_rmq`
