@@ -30,7 +30,7 @@ import org.springframework.stereotype.Component;
 /**
  * Provisions this service's schema for a newly created or updated tenant.
  *
- * <p>Listens on {@code iqkv.catalog.tenant.provisioning} for {@code tenant.created} and
+ * <p>Listens on {@code docintelligence.catalog.tenant.provisioning} for {@code tenant.created} and
  * {@code tenant.updated} events published by the IAM service and runs Liquibase tenant migrations
  * against this service's database. Migrations are idempotent, so replaying them on an update is
  * safe. Schema provisioning is independent of IAM — this service does not update tenant status or

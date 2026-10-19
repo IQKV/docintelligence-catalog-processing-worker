@@ -45,8 +45,8 @@ public class RabbitMQConfig {
   // -------------------------------------------------------------------------
   // Queue names — replace "catalog" with the actual service name
   // -------------------------------------------------------------------------
-  public static final String TENANT_PROVISIONING_QUEUE = "iqkv.catalog.tenant.provisioning";
-  public static final String SERVICE_DLQ = "iqkv.catalog.tenant.provisioning.dlq";
+  public static final String TENANT_PROVISIONING_QUEUE = "docintelligence.catalog.tenant.provisioning";
+  public static final String SERVICE_DLQ = "docintelligence.catalog.tenant.provisioning.dlq";
 
   // -------------------------------------------------------------------------
   // Routing keys
