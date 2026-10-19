@@ -29,8 +29,6 @@ import org.springframework.context.annotation.Configuration;
  * RabbitMQ configuration for this service.
  * Declares the tenant provisioning queue and binds it to the shared platform events exchange.
  *
- * <p>When scaffolding a new service from this template, replace every occurrence of
- * {@code catalog} with the actual service name (e.g. {@code cms}, {@code reporting}).
  */
 @Configuration
 @ConditionalOnProperty(name = "iqkv.messaging.rabbitmq.enabled", havingValue = "true")
@@ -42,9 +40,6 @@ public class RabbitMQConfig {
   public static final String EVENTS_EXCHANGE = "iqkv.events";
   public static final String DLX_EXCHANGE = "iqkv.dlx";
 
-  // -------------------------------------------------------------------------
-  // Queue names — replace "catalog" with the actual service name
-  // -------------------------------------------------------------------------
   public static final String TENANT_PROVISIONING_QUEUE = "docintelligence.catalog.tenant.provisioning";
   public static final String SERVICE_DLQ = "docintelligence.catalog.tenant.provisioning.dlq";
 

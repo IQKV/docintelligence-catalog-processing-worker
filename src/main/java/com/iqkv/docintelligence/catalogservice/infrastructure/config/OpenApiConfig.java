@@ -31,9 +31,6 @@ import org.springframework.context.annotation.Configuration;
  * <p>Registers a global Bearer JWT security scheme so that every endpoint in
  * the Swagger UI shows a padlock and allows token input without per-operation
  * annotation.
- *
- * <p>When scaffolding a new service from this template, update the {@code title}
- * and {@code description} below to reflect the actual service purpose.
  */
 @Configuration
 @SecurityScheme(

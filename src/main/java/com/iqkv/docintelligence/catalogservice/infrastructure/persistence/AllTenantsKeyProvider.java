@@ -38,9 +38,6 @@ import org.springframework.stereotype.Component;
  *
  * <p>On startup, {@link com.iqkv.foundation.tenancy.TenantLiquibaseRunner} will apply any pending
  * Liquibase changesets to each discovered schema, keeping all tenant schemas current after a deployment.
- *
- * <p>When scaffolding a new service from this template, replace every occurrence of
- * {@code catalog} with the actual service name.
  */
 @Component
 public class AllTenantsKeyProvider implements TenantKeyProvider {
