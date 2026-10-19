@@ -1,23 +1,23 @@
 services:
-  # PostgreSQL Database for AI Chat Service - Local Development
-  postgres-aichat:
+  # PostgreSQL Database for Catalog Service - Local Development
+  postgres-catalog:
     image: postgres:17-alpine
-    container_name: foundation-aichat-postgres-dev
+    container_name: foundation-catalog-postgres-dev
     environment:
-      POSTGRES_DB: aichat
-      POSTGRES_USER: svc_aichat_dba
-      POSTGRES_PASSWORD: svc_aichat_dba
+      POSTGRES_DB: catalogservice
+      POSTGRES_USER: svc_catalog_dba
+      POSTGRES_PASSWORD: svc_catalog_dba
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
       - "5432:5432"
     volumes:
-      - postgres_aichat_data:/var/lib/postgresql/data
-      - ./docker/postgres/init-aichat.sql:/docker-entrypoint-initdb.d/init-aichat.sql:ro
+      - postgres_catalog_data:/var/lib/postgresql/data
+      - ./docker/postgres/init-catalog.sql:/docker-entrypoint-initdb.d/init-catalog.sql:ro
     networks:
-      - aichat-service-network
+      - catalog-service-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U svc_aichat_dba -d aichat -h localhost"]
+      test: ["CMD-SHELL", "pg_isready -U svc_catalog_dba -d catalogservice -h localhost"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -40,22 +40,22 @@ services:
       -c min_wal_size=1GB
       -c max_wal_size=4GB
 
-  # RabbitMQ for AI Chat Service - Local Development
-  rabbitmq-aichat:
+  # RabbitMQ for Catalog Service - Local Development
+  rabbitmq-catalog:
     image: rabbitmq:3.13-management-alpine
-    container_name: foundation-aichat-rabbitmq-dev
+    container_name: foundation-catalog-rabbitmq-dev
     environment:
-      RABBITMQ_DEFAULT_USER: svc_aichat_rmq
-      RABBITMQ_DEFAULT_PASS: svc_aichat_rmq
+      RABBITMQ_DEFAULT_USER: svc_catalog_rmq
+      RABBITMQ_DEFAULT_PASS: svc_catalog_rmq
       RABBITMQ_DEFAULT_VHOST: /
       RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: -rabbit log_levels [{connection,error},{default,info}] disk_free_limit 2147483648
     ports:
       - "5672:5672" # AMQP port
       - "15672:15672" # Management UI
     volumes:
-      - rabbitmq_aichat_data:/var/lib/rabbitmq
+      - rabbitmq_catalog_data:/var/lib/rabbitmq
     networks:
-      - aichat-service-network
+      - catalog-service-network
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 30s
@@ -67,18 +67,18 @@ services:
   # MailHog for local email testing
   mailhog:
     image: mailhog/mailhog:v1.0.1
-    container_name: foundation-aichat-mailhog-dev
+    container_name: foundation-catalog-mailhog-dev
     ports:
       - "1025:1025" # SMTP
       - "8025:8025" # Web UI
     networks:
-      - aichat-service-network
+      - catalog-service-network
     restart: unless-stopped
 
   # DbGate - Database Administration Tool
   dbgate:
     image: dbgate/dbgate:5.3.3
-    container_name: foundation-aichat-dbgate-dev
+    container_name: foundation-catalog-dbgate-dev
     environment:
       WEB_ROOT: /
       LOGINS: "1"
@@ -86,13 +86,13 @@ services:
       - "3100:3000" # DbGate Web UI (port 3100 to avoid conflict with Grafana)
     volumes:
       - ./docker/dbgate/connections.jsonl:/root/.dbgate/connections.jsonl:ro
-      - dbgate_aichat_data:/root/.dbgate
+      - dbgate_catalog_data:/root/.dbgate
     networks:
-      - aichat-service-network
+      - catalog-service-network
     depends_on:
-      postgres-aichat:
+      postgres-catalog:
         condition: service_healthy
-      rabbitmq-aichat:
+      rabbitmq-catalog:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
@@ -102,31 +102,31 @@ services:
       start_period: 30s
     restart: unless-stopped
 
-  # AiChatService - Local Development
-  aichat-service:
+  # Catalog Service - Local Development
+  catalog-service:
     build:
       context: .
       dockerfile: ./Dockerfile
       target: builder
-    image: iqkv/foundation-ai-chat-service:local
-    container_name: foundation-ai-chat-service-dev
+    image: iqkv/docintelligence-catalog-service:local
+    container_name: docintelligence-catalog-service-dev
     environment:
       # Spring Configuration
       SPRING_PROFILES_ACTIVE: local
-      SPRING_APPLICATION_NAME: foundation-ai-chat-service
+      SPRING_APPLICATION_NAME: docintelligence-catalog-service
 
       # Database Configuration
-      DB_HOST: postgres-aichat
+      DB_HOST: postgres-catalog
       DB_PORT: 5432
-      DB_NAME: aichat
-      DB_USERNAME: svc_aichat_dba
-      DB_PASSWORD: svc_aichat_dba
+      DB_NAME: catalogservice
+      DB_USERNAME: svc_catalog_dba
+      DB_PASSWORD: svc_catalog_dba
 
       # RabbitMQ Configuration
-      RABBITMQ_HOST: rabbitmq-aichat
+      RABBITMQ_HOST: rabbitmq-catalog
       RABBITMQ_PORT: 5672
-      RABBITMQ_USERNAME: svc_aichat_rmq
-      RABBITMQ_PASSWORD: svc_aichat_rmq
+      RABBITMQ_USERNAME: svc_catalog_rmq
+      RABBITMQ_PASSWORD: svc_catalog_rmq
 
       # Mail Configuration (MailHog)
       MAIL_HOST: mailhog
@@ -137,8 +137,8 @@ services:
       MAIL_REPLY_TO: ""
 
       # Observability
-      OTEL_SERVICE_NAME: foundation-ai-chat-service
-      OTEL_RESOURCE_ATTRIBUTES: service.name=foundation-ai-chat-service,service.version=1.0.0,deployment.environment=dev
+      OTEL_SERVICE_NAME: docintelligence-catalog-service
+      OTEL_RESOURCE_ATTRIBUTES: service.name=docintelligence-catalog-service,service.version=1.0.0,deployment.environment=dev
 
       # JVM Configuration
       JAVA_OPTS: >-
@@ -159,15 +159,15 @@ services:
       SPRING_AI_OLLAMA_BASE_URL: "http://ollama:11434"
       SPRING_AI_OLLAMA_CHAT_OPTIONS_MODEL: "llama3.2"
     ports:
-      - "8080:8080" # AiChatService API
+      - "8080:8080" # Catalog Service API
       - "8081:8081" # Actuator / management
     depends_on:
-      postgres-aichat:
+      postgres-catalog:
         condition: service_healthy
-      rabbitmq-aichat:
+      rabbitmq-catalog:
         condition: service_healthy
     networks:
-      - aichat-service-network
+      - catalog-service-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health/readiness"]
       interval: 30s
@@ -176,8 +176,8 @@ services:
       start_period: 90s
     restart: unless-stopped
     volumes:
-      - aichat_logs:/app/logs
-      - aichat_tmp:/app/tmp
+      - catalog_logs:/app/logs
+      - catalog_tmp:/app/tmp
     deploy:
       resources:
         limits:
@@ -190,51 +190,51 @@ services:
   # Ollama — local LLM inference
   ollama:
     image: ollama/ollama:latest
-    container_name: foundation-aichat-ollama-dev
+    container_name: foundation-catalog-ollama-dev
     environment:
       # Allow requests from the service container and the local browser
-      OLLAMA_ORIGINS: "http://localhost:8080,http://aichat-service:8080"
+      OLLAMA_ORIGINS: "http://localhost:8080,http://catalog-service:8080"
       # Keep models loaded indefinitely (no idle unload)
       OLLAMA_KEEP_ALIVE: -1
     ports:
       - "11434:11434" # Ollama REST API
     volumes:
-      - ollama_aichat_data:/root/.ollama
+      - ollama_catalog_data:/root/.ollama
     networks:
-      - aichat-service-network
+      - catalog-service-network
     restart: unless-stopped
     # Pull a model after first start:
-    #   docker exec foundation-aichat-ollama-dev ollama pull llama3.2
+    #   docker exec foundation-catalog-ollama-dev ollama pull llama3.2
 
   # SonarQube for code quality analysis
   sonar:
     image: sonarqube:25.3.0.104237-community
-    container_name: foundation-aichat-sonarqube-dev
+    container_name: foundation-catalog-sonarqube-dev
     environment:
       - SONAR_FORCEAUTHENTICATION=false
     ports:
       - "127.0.0.1:9001:9000"
       - "127.0.0.1:9000:9000"
     networks:
-      - aichat-service-network
+      - catalog-service-network
     restart: unless-stopped
 
   # Prometheus for metrics collection
   prometheus:
     image: prom/prometheus:latest
-    container_name: foundation-aichat-prometheus-dev
+    container_name: foundation-catalog-prometheus-dev
     volumes:
       - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
     ports:
       - "9090:9090"
     networks:
-      - aichat-service-network
+      - catalog-service-network
     restart: unless-stopped
 
   # Grafana for metrics visualization
   grafana:
     image: grafana/grafana:latest
-    container_name: foundation-aichat-grafana-dev
+    container_name: foundation-catalog-grafana-dev
     volumes:
       - ./docker/grafana/provisioning:/etc/grafana/provisioning
     environment:
@@ -244,13 +244,13 @@ services:
     depends_on:
       - prometheus
     networks:
-      - aichat-service-network
+      - catalog-service-network
     restart: unless-stopped
 
 networks:
-  aichat-service-network:
+  catalog-service-network:
     driver: bridge
-    name: foundation-ai-chat-service-network-dev
+    name: docintelligence-catalog-service-network-dev
     ipam:
       config:
         # Pick a unique /16 block for each new service to avoid subnet conflicts.
@@ -261,26 +261,26 @@ networks:
         #   172.23.0.0/16  — foundation-gateway-service
         #   172.24.0.0/16  — foundation-cms-service
         #   172.25.0.0/16  — foundation-audit-service
-        #   172.26.0.0/16  — foundation-ai-chat-service
+        #   172.26.0.0/16  — docintelligence-catalog-service
         #   172.27.0.0/16  — next available
         - subnet: 172.26.0.0/16
 
 volumes:
-  postgres_aichat_data:
-    name: iqkv_aichat_postgres_data_dev
+  postgres_catalog_data:
+    name: docintelligence_catalog_postgres_data_dev
     driver: local
-  rabbitmq_aichat_data:
-    name: iqkv_aichat_rabbitmq_data_dev
+  rabbitmq_catalog_data:
+    name: docintelligence_catalog_rabbitmq_data_dev
     driver: local
-  dbgate_aichat_data:
-    name: iqkv_aichat_dbgate_data_dev
+  dbgate_catalog_data:
+    name: docintelligence_catalog_dbgate_data_dev
     driver: local
-  aichat_logs:
-    name: iqkv_aichat_logs_dev
+  catalog_logs:
+    name: docintelligence_catalog_logs_dev
     driver: local
-  aichat_tmp:
-    name: iqkv_aichat_tmp_dev
+  catalog_tmp:
+    name: docintelligence_catalog_tmp_dev
     driver: local
-  ollama_aichat_data:
-    name: iqkv_aichat_ollama_data_dev
+  ollama_catalog_data:
+    name: docintelligence_catalog_ollama_data_dev
     driver: local

@@ -1,5 +1,5 @@
 {
-    "name": "@iqkv/foundation-ai-chat-service",
+    "name": "@iqkv/docintelligence-catalog-service",
     "version": "0.0.0-SNAPSHOT",
     "private": true,
     "description": "Provide an optional Git commit hooks.",

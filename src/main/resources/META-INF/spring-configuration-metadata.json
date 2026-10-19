@@ -14,14 +14,14 @@
         },
         {
             "name": "iqkv.messaging.rabbitmq",
-            "type": "com.iqkv.foundation.aichatservice.infrastructure.config.MessagingConfigurationProperties",
-            "sourceType": "com.iqkv.foundation.aichatservice.infrastructure.config.MessagingConfigurationProperties",
+            "type": "com.iqkv.docintelligence.catalogservice.infrastructure.config.MessagingConfigurationProperties",
+            "sourceType": "com.iqkv.docintelligence.catalogservice.infrastructure.config.MessagingConfigurationProperties",
             "description": "RabbitMQ messaging toggles. 'enabled' drives @ConditionalOnProperty in RabbitMQConfig and TenantProvisioningConsumer."
         },
         {
             "name": "iqkv.platform",
-            "type": "com.iqkv.foundation.aichatservice.infrastructure.config.PlatformConfigurationProperties",
-            "sourceType": "com.iqkv.foundation.aichatservice.infrastructure.config.PlatformConfigurationProperties",
+            "type": "com.iqkv.docintelligence.catalogservice.infrastructure.config.PlatformConfigurationProperties",
+            "sourceType": "com.iqkv.docintelligence.catalogservice.infrastructure.config.PlatformConfigurationProperties",
             "description": "Platform-wide operational settings. Must be consistent across all core services (IAM, Billing, CMS, etc.) — all read the same ROLLOUT_MODE env var."
         },
         {
@@ -39,21 +39,15 @@
             "description": "Billing service integration consumed by the foundation-entitlement-plan-resolver-mvc PlanResolver for quota / plan enforcement."
         },
         {
-            "name": "iqkv.ai",
-            "type": "com.iqkv.foundation.aichatservice.infrastructure.config.AiChatProperties",
-            "sourceType": "com.iqkv.foundation.aichatservice.infrastructure.config.AiChatProperties",
-            "description": "AI chat prompt framing and token budgets applied to every chat request."
-        },
-        {
             "name": "iqkv.auth",
-            "type": "com.iqkv.foundation.aichatservice.infrastructure.config.AuthConfigurationProperties",
-            "sourceType": "com.iqkv.foundation.aichatservice.infrastructure.config.AuthConfigurationProperties",
+            "type": "com.iqkv.docintelligence.catalogservice.infrastructure.config.AuthConfigurationProperties",
+            "sourceType": "com.iqkv.docintelligence.catalogservice.infrastructure.config.AuthConfigurationProperties",
             "description": "Authentication and JWT configuration."
         },
         {
             "name": "iqkv.auth.jwt",
-            "type": "com.iqkv.foundation.aichatservice.infrastructure.config.AuthConfigurationProperties$Jwt",
-            "sourceType": "com.iqkv.foundation.aichatservice.infrastructure.config.AuthConfigurationProperties",
+            "type": "com.iqkv.docintelligence.catalogservice.infrastructure.config.AuthConfigurationProperties$Jwt",
+            "sourceType": "com.iqkv.docintelligence.catalogservice.infrastructure.config.AuthConfigurationProperties",
             "description": "JWT token verification settings. Exactly one of jwks-uri or public-key-path must be set."
         }
     ],
@@ -74,19 +68,19 @@
             "name": "iqkv.db.name",
             "type": "java.lang.String",
             "description": "Database name.",
-            "defaultValue": "aichatservice"
+            "defaultValue": "catalogservice"
         },
         {
             "name": "iqkv.db.username",
             "type": "java.lang.String",
             "description": "Database username.",
-            "defaultValue": "svc_aichat_dba"
+            "defaultValue": "svc_catalog_dba"
         },
         {
             "name": "iqkv.db.password",
             "type": "java.lang.String",
             "description": "Database password.",
-            "defaultValue": "svc_aichat_dba"
+            "defaultValue": "svc_catalog_dba"
         },
         {
             "name": "iqkv.rabbitmq.host",
@@ -104,13 +98,13 @@
             "name": "iqkv.rabbitmq.username",
             "type": "java.lang.String",
             "description": "RabbitMQ username.",
-            "defaultValue": "svc_aichat_rmq"
+            "defaultValue": "svc_catalog_rmq"
         },
         {
             "name": "iqkv.rabbitmq.password",
             "type": "java.lang.String",
             "description": "RabbitMQ password.",
-            "defaultValue": "svc_aichat_rmq"
+            "defaultValue": "svc_catalog_rmq"
         },
         {
             "name": "iqkv.messaging.rabbitmq.enabled",
@@ -120,7 +114,7 @@
         },
         {
             "name": "iqkv.platform.rollout-mode",
-            "type": "com.iqkv.foundation.aichatservice.infrastructure.config.RolloutMode",
+            "type": "com.iqkv.docintelligence.catalogservice.infrastructure.config.RolloutMode",
             "description": "Platform-wide operational mode. Must match across all core services. MULTI_TENANT: each signup creates a new tenant. SINGLE_TENANT: all users join a single pre-provisioned tenant.",
             "defaultValue": "MULTI_TENANT"
         },
@@ -190,7 +184,7 @@
         {
             "name": "iqkv.billing.service-url",
             "type": "java.lang.String",
-            "description": "Base URL of the billing service used for quota / plan enforcement. Consumed by the entitlement PlanResolver and by PlatformContextService.",
+            "description": "Base URL of the billing service used for quota / plan enforcement. Consumed by the entitlement PlanResolver.",
             "defaultValue": "http://foundation-billing-service"
         },
         {
@@ -198,35 +192,6 @@
             "type": "java.time.Duration",
             "description": "How often the entitlement plan catalog cache is refreshed from the billing service.",
             "defaultValue": "PT10M"
-        },
-        {
-            "name": "iqkv.ai.system-prompt",
-            "type": "java.lang.String",
-            "description": "System prompt injected on every chat request. Frames the assistant's role, constrains allowed topics and sets output style. Override via AI_SYSTEM_PROMPT without a rebuild."
-        },
-        {
-            "name": "iqkv.ai.max-input-chars",
-            "type": "java.lang.Integer",
-            "description": "Maximum number of characters accepted from the user message (input guard). Longer messages are truncated before being sent to the LLM.",
-            "defaultValue": 4000
-        },
-        {
-            "name": "iqkv.ai.max-output-tokens",
-            "type": "java.lang.Integer",
-            "description": "Maximum number of tokens the LLM may generate in a single response (output guard). Maps to ChatOptions.maxTokens().",
-            "defaultValue": 1024
-        },
-        {
-            "name": "iqkv.ai.temperature",
-            "type": "java.lang.Double",
-            "description": "Response creativity: 0.0-0.3 focused/factual, 0.7-1.0 creative.",
-            "defaultValue": 0.7
-        },
-        {
-            "name": "iqkv.ai.default-model",
-            "type": "java.lang.String",
-            "description": "Ollama model tag used when the client request omits the model field. Reads the same env var (SPRING_AI_OLLAMA_CHAT_OPTIONS_MODEL) as spring.ai.ollama.chat.model.",
-            "defaultValue": "llama3.1:8b"
         },
         {
             "name": "iqkv.auth.jwt.jwks-uri",

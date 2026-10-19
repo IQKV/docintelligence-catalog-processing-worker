@@ -4,7 +4,7 @@
 
 spring:
   application:
-    name: foundation-ai-chat-service
+    name: docintelligence-catalog-service
   datasource:
     url: jdbc:postgresql://${iqkv.db.host}:${iqkv.db.port}/${iqkv.db.name}
     username: ${iqkv.db.username}
@@ -14,6 +14,18 @@ spring:
     port: ${iqkv.rabbitmq.port}
     username: ${iqkv.rabbitmq.username}
     password: ${iqkv.rabbitmq.password}
+    listener:
+      simple:
+        # A rejected delivery must not be requeued immediately, otherwise a poison
+        # tenant event loops until its 24h TTL expires. After the bounded retries
+        # below the message is dead-lettered to SERVICE_DLQ for inspection.
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 2s
+          multiplier: 2.0
+          max-interval: 30s
   liquibase:
     enabled: false
     change-log: classpath:db/changelog/system/db.changelog-system.xml
@@ -38,9 +50,6 @@ server:
   port: 8080
   forward-headers-strategy: framework
   shutdown: graceful
-  tomcat:
-    # Extended for LLM inference — llama3.1:8b can take 60-120s for long responses.
-    connection-timeout: 180s
 
 springdoc:
   api-docs:
@@ -66,14 +75,14 @@ iqkv:
   db:
     host: ${DB_HOST:localhost}
     port: ${DB_PORT:5432}
-    name: ${DB_NAME:aichatservice}
-    username: ${DB_USERNAME:svc_aichat_dba}
-    password: ${DB_PASSWORD:svc_aichat_dba}
+    name: ${DB_NAME:catalogservice}
+    username: ${DB_USERNAME:svc_catalog_dba}
+    password: ${DB_PASSWORD:svc_catalog_dba}
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USERNAME:svc_aichat_rmq}
-    password: ${RABBITMQ_PASSWORD:svc_aichat_rmq}
+    username: ${RABBITMQ_USERNAME:svc_catalog_rmq}
+    password: ${RABBITMQ_PASSWORD:svc_catalog_rmq}
   messaging:
     rabbitmq:
       # Controlled via MESSAGING_ENABLED env var; defaults to false for local safety.
@@ -101,31 +110,6 @@ iqkv:
     service-url: ${BILLING_SERVICE_URI:http://foundation-billing-service}
     # How often the plan catalog cache is refreshed (ISO-8601 duration)
     plan-refresh-interval: ${BILLING_PLAN_REFRESH_INTERVAL:PT10M}
-  ai:
-    # System prompt injected on every chat request.
-    # Frames the assistant's role, constrains allowed topics, and sets output style.
-    # Override via AI_SYSTEM_PROMPT env var to customise without a rebuild.
-    system-prompt: ${AI_SYSTEM_PROMPT:You are a support specialist for the iQ Key Value platform.\
-      Your goal is to help users understand their account, billing plans, and platform features in a clear and approachable way.\
-      Communicate in a warm, conversational tone - like a helpful colleague, not a technical manual.\
-      Always personalize your responses by using the user's name when appropriate.\
-      Explain concepts in simple, everyday language without technical jargon, code samples, or JSON responses.\
-      When discussing plans or features, focus on benefits and value rather than technical specifications.\
-      Be polite, patient, and genuinely helpful. If you don't know something, say so honestly and guide them to the right resource.\
-      If a question is outside platform support (like politics, religion, or personal advice), politely redirect with kindness.\
-      Keep responses concise but complete - provide just enough information to be helpful without overwhelming.}
-    # Maximum number of characters accepted from the user message (input guard).
-    # Messages longer than this are truncated before being sent to the LLM.
-    max-input-chars: ${AI_MAX_INPUT_CHARS:4000}
-    # Maximum number of tokens the LLM may generate in a single response (output guard).
-    max-output-tokens: ${AI_MAX_OUTPUT_TOKENS:1024}
-    # Temperature controls response creativity.
-    # 0.0-0.3 = focused/factual, 0.7-1.0 = creative. Default 0.7 suits general Q&A.
-    temperature: ${AI_TEMPERATURE:0.7}
-    # Default Ollama model tag used when the client request omits the model field.
-    # Reads the same env var as spring.ai.ollama.chat.model so there is a single
-    # value to configure — no separate AI_DEFAULT_MODEL needed.
-    default-model: ${SPRING_AI_OLLAMA_CHAT_OPTIONS_MODEL:llama3.1:8b}
   auth:
     jwt:
       # --- Deployed (K8s) — set JWT_JWKS_URI in Helm values / K8s configmap ---

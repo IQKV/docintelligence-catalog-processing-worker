@@ -134,7 +134,7 @@ Format: `type(scope): subject`
 
 - Subject: imperative, lowercase, no trailing period, ≤ 72 chars
 - Types: `feat`, `fix`, `improvement`, `refactor`, `docs`, `test`, `chore`, `ci`, `perf`, `revert`
-- Scope: affected bounded context or layer — replace `aichat` with your actual service name
+- Scope: affected bounded context or layer — replace `catalog` with your actual service name
 - For `fix`: describe the symptom and trigger, not the code change
     - ✅ `fix(security): unauthenticated requests bypass tenant guard in single-tenant mode`
     - ❌ `fix(security): add missing auth check`
@@ -288,8 +288,7 @@ Before making recommendations, agents should understand the project's technology
 
 **AI**
 
-- Spring AI (`spring-ai-starter-model-ollama`) — Ollama-backed chat completions
-- Chat sessions and messages stored in `public.chat_sessions` / `public.chat_messages`
+- Spring AI Ollama starter (`spring-ai-starter-model-ollama`) — connectivity to an Ollama instance only
 
 **Build & Deployment**
 
@@ -563,29 +562,27 @@ Use `@ExtendWith(MockitoExtension.class)`. Inject all dependencies via construct
 
 ```java
 @ExtendWith(MockitoExtension.class)
-class ChatServiceImplTest {
+class UserServiceImplTest {
 
   @Mock
-  private ChatSessionMapper chatSessionMapper;
-  @Mock
-  private ChatMessageMapper chatMessageMapper;
+  private UserMapper userMapper;
 
-  private ChatServiceImpl chatService;
+  private UserService userService;
 
   @BeforeEach
   void setUp() {
-    chatService = new ChatServiceImpl(chatSessionMapper, chatMessageMapper);
+    userService = new UserServiceImpl(userMapper);
   }
 
   @Test
-  @DisplayName("Should throw when session not found")
-  void shouldThrowWhenSessionNotFound() {
+  @DisplayName("Should throw when user not found")
+  void shouldThrowWhenUserNotFound() {
     // Arrange
-    final var id = UUID.randomUUID();
-    when(chatSessionMapper.findById(id)).thenReturn(Optional.empty());
+    final var id = 1L;
+    when(userMapper.findById(id)).thenReturn(Optional.empty());
 
     // Act & Assert
-    assertThatThrownBy(() -> chatService.getSession(id))
+    assertThatThrownBy(() -> userService.getById(id))
         .isInstanceOf(ResourceNotFoundException.class);
   }
 }
@@ -622,13 +619,13 @@ class UserServiceIntegrationTest {
 **Architecture Tests with ArchUnit:**
 
 ```java
-@AnalyzeClasses(packagesOf = AiChatServiceApplication.class, importOptions = DoNotIncludeTests.class)
+@AnalyzeClasses(packagesOf = CatalogServiceApplication.class, importOptions = DoNotIncludeTests.class)
 class TechnicalStructureTest {
 
   @ArchTest
   static final ArchRule respectsTechnicalArchitectureLayers = onionArchitecture()
       .withOptionalLayers(true)
-      .ignoreDependency(belongToAnyOf(AiChatServiceApplication.class), alwaysTrue());
+      .ignoreDependency(belongToAnyOf(CatalogServiceApplication.class), alwaysTrue());
 }
 ```
 

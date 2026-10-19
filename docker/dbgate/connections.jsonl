@@ -1,2 +1,2 @@
-{"_id":"postgres-aichat","engine":"postgres@dbgate-plugin-postgres","server":"postgres-aichat","port":5432,"user":"svc_aichat_dba","password":"svc_aichat_dba","database":"aichat","displayName":"PostgreSQL - AI Chat Service"}
-{"_id":"rabbitmq-aichat","engine":"rabbitmq@dbgate-plugin-rabbitmq","server":"rabbitmq-aichat","port":15672,"user":"svc_aichat_rmq","password":"svc_aichat_rmq","displayName":"RabbitMQ - AI Chat Service"}
+{"_id":"postgres-catalog","engine":"postgres@dbgate-plugin-postgres","server":"postgres-catalog","port":5432,"user":"svc_catalog_dba","password":"svc_catalog_dba","database":"catalogservice","displayName":"PostgreSQL - Catalog Service"}
+{"_id":"rabbitmq-catalog","engine":"rabbitmq@dbgate-plugin-rabbitmq","server":"rabbitmq-catalog","port":15672,"user":"svc_catalog_rmq","password":"svc_catalog_rmq","displayName":"RabbitMQ - Catalog Service"}

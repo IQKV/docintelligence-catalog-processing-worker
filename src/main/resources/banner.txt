@@ -1,5 +1,5 @@
 ${AnsiColor.BLUE} ===============================
-${AnsiColor.BLUE}  AiChatService Backend API
+${AnsiColor.BLUE}  Catalog Service Backend API
 ${AnsiColor.BLUE}  Running Spring Boot ${spring-boot.version}
 ${AnsiColor.BLUE}  VCS Reference: ${APPLICATION_VCS_REFERENCE:unknown}
 ${AnsiColor.BLUE} ===============================

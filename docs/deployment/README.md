@@ -2,7 +2,7 @@
 
 ### Overview
 
-The Foundation AI Chat Service is deployed using Helm charts and automated CI/CD pipelines. The service provides LLM-backed conversational capabilities via Spring AI 2.0 and Ollama, with JWT RS256 resource-server security validated against the IAM service JWKS endpoint.
+The Document Intelligence Catalog Service is deployed using Helm charts and automated CI/CD pipelines. The service connects to an Ollama instance for LLM connectivity, with JWT RS256 resource-server security validated against the IAM service JWKS endpoint.
 
 ### Prerequisites
 
@@ -58,7 +58,7 @@ The service uses a Drone CI/CD pipeline with 10 stages:
 | `INFRA_POSTGRESQL_PASSWORD`       | PostgreSQL database password      | Application configuration                  |
 | `INFRA_RABBITMQ_PASSWORD`         | RabbitMQ message broker password  | Application configuration                  |
 
-> No `SMTP_*` secrets required — the AI Chat Service does not send email.
+> No `SMTP_*` secrets required — the Catalog Service does not send email.
 
 </details>
 
@@ -77,7 +77,7 @@ The service uses a Drone CI/CD pipeline with 10 stages:
 
 ```bash
 # WIP / Feature branches (SIT)
-helm upgrade --install --atomic --wait --timeout 5m foundation-ai-chat-service ./ \
+helm upgrade --install --atomic --wait --timeout 5m docintelligence-catalog-service ./ \
   --values ./values.yaml \
   --values ./values-sit.yaml \
   --set image.tag=${DRONE_BRANCH} \
@@ -87,7 +87,7 @@ helm upgrade --install --atomic --wait --timeout 5m foundation-ai-chat-service .
   --create-namespace
 
 # Production (tagged releases)
-helm upgrade --install --atomic --wait --timeout 5m foundation-ai-chat-service ./ \
+helm upgrade --install --atomic --wait --timeout 5m docintelligence-catalog-service ./ \
   --values ./values.yaml \
   --values ./values-prd.yaml \
   --set image.tag=${DRONE_TAG} \
@@ -106,10 +106,10 @@ helm upgrade --install --atomic --wait --timeout 5m foundation-ai-chat-service .
 ```bash
 # Clone Helm charts
 git clone <HELM_CHARTS_REPOSITORY> charts
-cd charts/IQKV/foundation-ai-chat-service
+cd charts/IQKV/docintelligence-catalog-service
 
 # Deploy to SIT
-helm upgrade --install foundation-ai-chat-service ./ \
+helm upgrade --install docintelligence-catalog-service ./ \
   --values values-sit.yaml \
   --set infraServices.postgresql.password="your-db-password" \
   --set infraServices.rabbitmq.password="your-rabbitmq-password" \
@@ -120,15 +120,15 @@ helm upgrade --install foundation-ai-chat-service ./ \
 #### Secret Configuration Examples
 
 ```bash
-drone secret add --repository IQKV/foundation-ai-chat-service --name INFRA_POSTGRESQL_PASSWORD --data "your-postgresql-password"
-drone secret add --repository IQKV/foundation-ai-chat-service --name INFRA_RABBITMQ_PASSWORD --data "your-rabbitmq-password"
+drone secret add --repository IQKV/docintelligence-catalog-service --name INFRA_POSTGRESQL_PASSWORD --data "your-postgresql-password"
+drone secret add --repository IQKV/docintelligence-catalog-service --name INFRA_RABBITMQ_PASSWORD --data "your-rabbitmq-password"
 ```
 
 #### External Services
 
 The service connects to these external infrastructure components:
 
-- **PostgreSQL**: Chat session and message persistence (system/public schema — no tenant schemas)
+- **PostgreSQL**: Service data persistence (system/public schema — no tenant schemas)
 - **RabbitMQ**: Messaging and tenant provisioning consumer
 - **Ollama**: LLM inference endpoint (`http://foundation-ollama:11434` by default)
 - **IAM Service**: JWKS endpoint for JWT validation (`http://foundation-iam-service:8080/.well-known/jwks.json`)
@@ -166,25 +166,6 @@ The default model is `llama3.1:8b`. Override via `ai.ollama.model` in values or 
 | Monitoring     | Disabled | Enabled  | Enabled       |
 | Network Policy | Disabled | Disabled | Enabled       |
 
-#### Prompt Engineering Configuration
-
-The system prompt and LLM parameters are configurable per environment without rebuilding the image:
-
-| Helm Value                  | Env Variable           | Default    | Description                           |
-| --------------------------- | ---------------------- | ---------- | ------------------------------------- |
-| `ai.prompt.systemPrompt`    | `AI_SYSTEM_PROMPT`     | (built-in) | System message injected on every call |
-| `ai.prompt.maxInputChars`   | `AI_MAX_INPUT_CHARS`   | 4000       | Input character limit                 |
-| `ai.prompt.maxOutputTokens` | `AI_MAX_OUTPUT_TOKENS` | 1024       | Max tokens per LLM response           |
-| `ai.prompt.temperature`     | `AI_TEMPERATURE`       | 0.7        | Response creativity (0.0–1.0)         |
-
-Override for a specific environment:
-
-```bash
-helm upgrade ... \
-  --set ai.prompt.systemPrompt="You are a helpful assistant for Acme Corp." \
-  --set ai.prompt.temperature=0.3
-```
-
 #### Platform Rollout Mode
 
 `platform.rolloutMode` must be identical across all core services (`MULTI_TENANT` or `SINGLE_TENANT`).
@@ -202,54 +183,38 @@ helm upgrade ... \
 UAT and production deployments include:
 
 - Prometheus ServiceMonitor
-- Alerting rules: service down, high memory (>85%), high CPU (>80%), high error rate (>5% 5xx), slow LLM responses (p95 >10s — extended threshold due to inference latency)
+- Alerting rules: service down, high memory (>85%), high CPU (>80%), high error rate (>5% 5xx), slow responses (p95 >10s)
 - Grafana dashboards
 
 ### Troubleshooting
 
 #### Common Issues
 
-1. **LLM model not found (502 Bad Gateway)**
+1. **Database connection failures**
 
     ```bash
-    # Check Ollama has the required model
-    kubectl exec -it deployment/foundation-ollama -n iqkv-sit-env -- ollama list
-    # If missing:
-    kubectl exec -it deployment/foundation-ollama -n iqkv-sit-env -- ollama pull llama3.1:8b
+    kubectl logs deployment/docintelligence-catalog-service -n iqkv-sit-env
     ```
 
-2. **Request timeout (gateway 504)**
-
-    LLM inference for large prompts can exceed 60 seconds. The gateway has a 180-second timeout on the `aichat-api` route. If timeouts persist, consider:
-    - Using a smaller model (e.g. `llama3.2`)
-    - Reducing `AI_MAX_OUTPUT_TOKENS`
-    - Scaling the Ollama instance to hardware with GPU
-
-3. **Database connection failures**
-
-    ```bash
-    kubectl logs deployment/foundation-ai-chat-service -n iqkv-sit-env
-    ```
-
-4. **JWT validation failures**
+2. **JWT validation failures**
 
     Ensure `config.jwt.jwksUri` points to the correct IAM service JWKS endpoint:
 
     ```bash
-    kubectl describe configmap foundation-ai-chat-service-config -n iqkv-sit-env
+    kubectl describe configmap docintelligence-catalog-service-config -n iqkv-sit-env
     ```
 
-5. **Check configuration**
+3. **Check configuration**
 
     ```bash
-    kubectl describe configmap foundation-ai-chat-service-config -n iqkv-sit-env
-    kubectl describe secret foundation-ai-chat-service-secrets -n iqkv-sit-env
+    kubectl describe configmap docintelligence-catalog-service-config -n iqkv-sit-env
+    kubectl describe secret docintelligence-catalog-service-secrets -n iqkv-sit-env
     ```
 
-6. **Test health endpoints**
+4. **Test health endpoints**
 
     ```bash
-    kubectl port-forward deployment/foundation-ai-chat-service 8081:8081 -n iqkv-sit-env
+    kubectl port-forward deployment/docintelligence-catalog-service 8081:8081 -n iqkv-sit-env
     curl http://localhost:8081/actuator/health
     ```
 
@@ -257,16 +222,16 @@ UAT and production deployments include:
 
 ```bash
 kubectl get secrets -n iqkv-sit-env
-kubectl get secret foundation-ai-chat-service-secrets -n iqkv-sit-env -o yaml
-drone secret ls --repository IQKV/foundation-ai-chat-service
+kubectl get secret docintelligence-catalog-service-secrets -n iqkv-sit-env -o yaml
+drone secret ls --repository IQKV/docintelligence-catalog-service
 ```
 
 #### Rollback
 
 ```bash
-helm rollback foundation-ai-chat-service -n iqkv-prd-env
+helm rollback docintelligence-catalog-service -n iqkv-prd-env
 # Or uninstall completely
-helm uninstall foundation-ai-chat-service -n iqkv-prd-env
+helm uninstall docintelligence-catalog-service -n iqkv-prd-env
 ```
 
 ### Security
@@ -277,4 +242,3 @@ helm uninstall foundation-ai-chat-service -n iqkv-prd-env
 - Network policies restrict pod communication in production — includes explicit Ollama egress rule (port 11434)
 - Non-root container execution (UID 1001)
 - Read-only root filesystem in production
-- System prompt configurable via env var — override per environment without a rebuild

@@ -1,28 +1,28 @@
-# Foundation AI Chat Service 🚀
+# Document Intelligence Catalog Service 🚀
 
-GitHub template demonstrating Spring AI integration on the iQ Key Value platform. Extends the standard `foundation-microservice-project-layout` with a working chat feature backed by Ollama — use it as a starting point for services that need locally-hosted LLM-backed conversational capabilities.
+GitHub template for the iQ Key Value platform. Extends the standard `foundation-microservice-project-layout` with a multi-tenant, JWT-secured service backed by PostgreSQL, RabbitMQ, and Ollama.
 
 ## About
 
 This template provides:
 
 - **Maven single-module layout** — standard `src/main/java` structure with MyBatis, PostgreSQL, Liquibase, and RabbitMQ wired up
-- **Spring AI integration** — chat endpoint wired to a local Ollama instance by default; swap to any OpenAI-compatible provider via `spring.ai.*` config
+- **Ollama connectivity** — LLM client wired to a local Ollama instance via `spring.ai.ollama.*` (base URL and model configurable per environment)
 - **Multi-profile Spring config** — `local`, `sit`, `uat`, `prd` profiles with correct defaults per environment
 - **Docker Compose** — `compose.base.yaml` with PostgreSQL, RabbitMQ, MailHog, SonarQube, Prometheus, and Grafana; `compose.container.yaml` for full runtime stack including the service container
 - **Dockerfile** — multi-stage build with layered JAR extraction, non-root `appuser`, and JVM tuning
-- **Database Initialization** — `docker/postgres/init-aichat.sql` for automated schema and extension setup
+- **Database Initialization** — `docker/postgres/init-catalog.sql` for automated schema and extension setup
 - **Security** — Spring Security + OAuth2 Resource Server (RS256 JWT) pre-configured
 - **Observability** — Micrometer + Prometheus + structured JSON logging (Logstash encoder)
 - **Quality tools** — Checkstyle, JaCoCo, ArchUnit, Husky git hooks, commitlint
 
 ## Template Usage
 
-1. Click **[Use this template](https://github.com/IQKV/foundation-ai-chat-service/generate)** to create your repository
-2. Replace all `aichat` / `AiChatService` tokens with your service name (see the token map in `foundation-microservice-project-layout`)
+1. Click **[Use this template](https://github.com/IQKV/docintelligence-catalog-service/generate)** to create your repository
+2. Replace all `catalog` / `CatalogService` tokens with your service name (see the token map in `foundation-microservice-project-layout`)
 3. Update `pom.xml` — `artifactId`, `name`, `description`, `start-class`
-4. Rename the Java package from `com.iqkv.foundation.aichatservice` to your package
-5. Adjust or extend the Spring AI chat feature to fit your use case
+4. Rename the Java package from `com.iqkv.docintelligence.catalogservice` to your package
+5. Add your own feature modules — see the `ping` package for the reference layout
 6. Remove unused dependencies from `pom.xml` (e.g. `shedlock` if no scheduled jobs needed)
 
 ## Quick Links
@@ -35,7 +35,7 @@ This template provides:
 ## Tech Stack
 
 - Java 25 / Spring Boot (latest via parent POM)
-- Spring AI with Ollama (default; switchable to any OpenAI-compatible provider)
+- Spring AI Ollama starter (local LLM connectivity)
 - MyBatis 3.x (no JPA) + PostgreSQL 17
 - Liquibase for schema migrations
 - RabbitMQ for async messaging
@@ -56,7 +56,7 @@ This template provides:
 
 ```bash
 # Clone or use as template
-git clone https://github.com/IQKV/foundation-ai-chat-service.git my-service
+git clone https://github.com/IQKV/docintelligence-catalog-service.git my-service
 cd my-service
 
 # Install git hooks
@@ -86,13 +86,13 @@ docker compose up -d
 | ------------------------------------- | ------------------------ | ------------------------------------- |
 | `DB_HOST`                             | `localhost`              | PostgreSQL host                       |
 | `DB_PORT`                             | `5432`                   | PostgreSQL port                       |
-| `DB_NAME`                             | `aichat`                 | Database name                         |
-| `DB_USERNAME`                         | `svc_aichat_dba`         | Database user                         |
-| `DB_PASSWORD`                         | `svc_aichat_dba`         | Database password                     |
+| `DB_NAME`                             | `catalogservice`         | Database name                         |
+| `DB_USERNAME`                         | `svc_catalog_dba`         | Database user                         |
+| `DB_PASSWORD`                         | `svc_catalog_dba`         | Database password                     |
 | `RABBITMQ_HOST`                       | `localhost`              | RabbitMQ host                         |
 | `RABBITMQ_PORT`                       | `5672`                   | RabbitMQ AMQP port                    |
-| `RABBITMQ_USERNAME`                   | `svc_aichat_rmq`         | RabbitMQ user                         |
-| `RABBITMQ_PASSWORD`                   | `svc_aichat_rmq`         | RabbitMQ password                     |
+| `RABBITMQ_USERNAME`                   | `svc_catalog_rmq`         | RabbitMQ user                         |
+| `RABBITMQ_PASSWORD`                   | `svc_catalog_rmq`         | RabbitMQ password                     |
 | `MAIL_HOST`                           | `localhost`              | SMTP host (MailHog)                   |
 | `MAIL_PORT`                           | `1025`                   | SMTP port                             |
 | `MAIL_FROM`                           | `noreply@iqkv.dev`       | Default sender email                  |
@@ -125,7 +125,7 @@ docker compose up -d
 
 ```bash
 # Build image
-docker build -t iqkv/aichat:latest .
+docker build -t iqkv/docintelligence-catalog-service:latest .
 
 # Run full stack (service + dependencies)
 docker compose -f compose.container.yaml up -d
@@ -149,7 +149,7 @@ docker compose -f compose.container.yaml up -d
 │   ├── postgres/       # DB initialization scripts
 │   ├── prometheus/     # Prometheus configuration
 │   └── grafana/        # Grafana dashboards and datasources
-├── src/main/java/com/iqkv/foundation/aichatservice/
+├── src/main/java/com/iqkv/foundation/catalogservice/
 │   ├── {domain}/       # Feature module (vertical slice)
 │   │   ├── {Entity}.java
 │   │   ├── {Entity}Service.java
@@ -190,8 +190,8 @@ Please read our [Contributing Guidelines](.github/CONTRIBUTING.md) and [Code of 
 
 ## 🧩 Architecture
 
-- **Spring AI**: Ollama chat client configured via `spring.ai.ollama.*`; model is overridable per request; swap to any OpenAI-compatible provider by changing the auto-configuration dependency and `spring.ai.*` properties — no code changes needed
-- **Persistence**: MyBatis with XML mappers + PostgreSQL; Liquibase manages schema migrations; `demo` context for seed data in local/sit/uat
+- **Ollama**: LLM connectivity configured via `spring.ai.ollama.*` (`SPRING_AI_OLLAMA_BASE_URL`, `SPRING_AI_OLLAMA_CHAT_OPTIONS_MODEL`)
+- **Persistence**: MyBatis with XML mappers + PostgreSQL; Liquibase manages schema migrations
 - **Messaging**: RabbitMQ consumer/publisher; `iqkv.messaging.rabbitmq.enabled` toggle — disabled in base, enabled per profile
 - **Security**: Spring Security + OAuth2 Resource Server; RS256 JWT validated via public key; `@PreAuthorize` on every endpoint
 - **Multi-tenancy**: `ROLLOUT_MODE` (`MULTI_TENANT` | `SINGLE_TENANT`) — must be identical across all platform services

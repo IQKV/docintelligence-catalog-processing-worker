@@ -1,4 +1,4 @@
-# Multi-stage build for AI Chat Service with optimized caching
+# Multi-stage build for Catalog Service with optimized caching
 FROM eclipse-temurin:25-jdk-alpine AS builder
 
 # Install Maven for build optimization

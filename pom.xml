@@ -8,10 +8,10 @@
         <version>0.24.34</version>
     </parent>
     <groupId>com.iqkv</groupId>
-    <artifactId>foundation-ai-chat-service</artifactId>
+    <artifactId>docintelligence-catalog-service</artifactId>
     <version>0.0.0-SNAPSHOT</version>
-    <name>AI Chat Service</name>
-    <description>Minimal chat microservice using Spring AI.</description>
+    <name>Catalog Service</name>
+    <description>Document Intelligence Catalog Service.</description>
     <developers>
 
     </developers>
@@ -23,7 +23,7 @@
         <checkstyle.skip>false</checkstyle.skip>
         <maven.gitcommitid.skip>false</maven.gitcommitid.skip>
         <jacoco.skip>true</jacoco.skip>
-        <start-class>com.iqkv.foundation.aichatservice.AiChatServiceApplication</start-class>
+        <start-class>com.iqkv.docintelligence.catalogservice.CatalogServiceApplication</start-class>
     </properties>
 
     <dependencies>

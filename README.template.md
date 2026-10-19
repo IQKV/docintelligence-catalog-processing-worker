@@ -1,17 +1,19 @@
-# Foundation AI Chat Service 💬
+# Document Intelligence Catalog Service �
 
-Spring AI integration template on the iQ Key Value platform. Demonstrates how to wire a multi-tenant, JWT-secured chat endpoint to a local Ollama instance within the standard foundation microservice layout. Works with any OpenAI-compatible provider via config.
+> **Template skeleton.** Replace this content when you create your repository from the template.
+> Repository development details live in [`README.md`](./README.md).
+
+A multi-tenant, JWT-secured microservice on the iQ Key Value platform, backed by PostgreSQL, RabbitMQ, and Ollama.
 
 ## About
 
-The AI Chat service provides a production-ready starting point for LLM-backed conversational features:
+This service provides:
 
-- **Spring AI Integration** — chat client pre-wired to a local Ollama instance by default; swap to any OpenAI-compatible provider via `spring.ai.*` config with no code changes
-- **Streaming & Blocking Modes** — supports both blocking response and server-sent event (SSE) streaming out of the box
-- **Multi-Tenant Isolation** — tenant context resolved from `X-Tenant-ID` header or JWT claim before every request; each tenant's conversation history is fully isolated
-- **Conversation Persistence** — chat sessions and message history stored in PostgreSQL via MyBatis; Liquibase manages per-tenant schema migrations
-- **Security** — stateless JWT resource server (RS256); public chat endpoints can be exposed per tenant while admin endpoints require `PLATFORM_ADMIN` authority
-- **Audit Integration** — publishes `AuditEvent` messages to `iqkv.events` for sensitive actions (session creation, model override)
+- **Ollama connectivity** — LLM client pre-wired to a local Ollama instance via `spring.ai.ollama.*` (base URL and model configurable per environment)
+- **Multi-tenant isolation** — tenant context resolved from the `X-Tenant-ID` header or the JWT `tenant_id` claim before every request
+- **Persistence** — data stored in PostgreSQL via MyBatis; Liquibase manages schema migrations
+- **Security** — stateless JWT resource server (RS256); public endpoints can be exposed while admin endpoints require `PLATFORM_ADMIN` authority
+- **Messaging** — RabbitMQ consumer for tenant provisioning events, gated by `iqkv.messaging.rabbitmq.enabled`
 
 ## Quick Links
 
@@ -22,42 +24,25 @@ The AI Chat service provides a production-ready starting point for LLM-backed co
 
 ## API
 
-Base path: `/api/v1/aichat`
+Base path: `/api/v1/catalog`
 
-### Chat
+| Method | Path           | Auth                 | Description                                                           |
+| :----- | :------------- | :------------------- | :-------------------------------------------------------------------- |
+| `GET`  | `/ping`        | public               | Unauthenticated reachability probe — no JWT or tenant header required |
+| `GET`  | `/tenant/ping` | JWT + `X-Tenant-ID`  | Tenant-scoped probe — echoes the resolved tenant key                  |
+| `GET`  | `/admin/ping`  | JWT `PLATFORM_ADMIN` | Admin probe — echoes the caller's `user_id` claim                     |
 
-| Method   | Path                    | Auth | Description                                             |
-| :------- | :---------------------- | :--- | :------------------------------------------------------ |
-| `POST`   | `/chat`                 | JWT  | Send a message; returns a blocking completion response. |
-| `POST`   | `/chat/stream`          | JWT  | Send a message; returns an SSE stream of token chunks.  |
-| `GET`    | `/sessions`             | JWT  | List chat sessions for the authenticated user.          |
-| `GET`    | `/sessions/{sessionId}` | JWT  | Get full message history for a session.                 |
-| `DELETE` | `/sessions/{sessionId}` | JWT  | Delete a session and its message history.               |
-
-### Admin
-
-| Method | Path              | Auth                 | Description                                     |
-| :----- | :---------------- | :------------------- | :---------------------------------------------- |
-| `GET`  | `/admin/sessions` | JWT `PLATFORM_ADMIN` | Search sessions across all tenants (paginated). |
-| `GET`  | `/admin/usage`    | JWT `PLATFORM_ADMIN` | Aggregate token usage statistics per tenant.    |
-
-> Auth legend: `JWT` = valid Bearer token required; `JWT PLATFORM_ADMIN` = platform administrator authority required.
+> Auth legend: `public` = no token required; `JWT` = valid Bearer token required; `JWT PLATFORM_ADMIN` = platform administrator authority required.
 
 ## Tech Stack
 
-- Java 25 / Spring Boot 4.x
-- Spring AI with Ollama (default; switchable to any OpenAI-compatible provider)
+- Java 25 / Spring Boot (latest via parent POM)
+- Spring AI Ollama starter (local LLM connectivity)
 - MyBatis 3.x (no JPA) + PostgreSQL 17
 - Liquibase for schema migrations
-- RabbitMQ for async messaging and audit event publishing
+- RabbitMQ for async messaging
 - Spring Security + OAuth2 Resource Server (RS256 JWT)
 - Micrometer + Prometheus
-
-## Observability
-
-- **Custom Metrics**:
-    - `aichat.request.count`: Rate of chat requests by tenant and model.
-    - `aichat.session.duration`: Chat session lifetime distribution.
 
 ## Prerequisites
 
@@ -71,8 +56,8 @@ Base path: `/api/v1/aichat`
 
 ```bash
 # Clone the repository
-git clone https://github.com/IQKV/foundation-ai-chat-service.git
-cd foundation-ai-chat-service
+git clone https://github.com/IQKV/docintelligence-catalog-service.git
+cd docintelligence-catalog-service
 
 # Install git hooks
 pnpm install
@@ -100,13 +85,13 @@ docker compose up -d
 | :------------------------------------ | :----------------------- | :-------------------------------------------- |
 | `DB_HOST`                             | `localhost`              | PostgreSQL host                               |
 | `DB_PORT`                             | `5432`                   | PostgreSQL port                               |
-| `DB_NAME`                             | `aichat`                 | Database name                                 |
-| `DB_USERNAME`                         | `svc_aichat_dba`         | Database user                                 |
-| `DB_PASSWORD`                         | `svc_aichat_dba`         | Database password                             |
+| `DB_NAME`                             | `catalogservice`         | Database name                                 |
+| `DB_USERNAME`                         | `svc_catalog_dba`         | Database user                                 |
+| `DB_PASSWORD`                         | `svc_catalog_dba`         | Database password                             |
 | `RABBITMQ_HOST`                       | `localhost`              | RabbitMQ host                                 |
 | `RABBITMQ_PORT`                       | `5672`                   | RabbitMQ AMQP port                            |
-| `RABBITMQ_USERNAME`                   | `svc_aichat_rmq`         | RabbitMQ user                                 |
-| `RABBITMQ_PASSWORD`                   | `svc_aichat_rmq`         | RabbitMQ password                             |
+| `RABBITMQ_USERNAME`                   | `svc_catalog_rmq`         | RabbitMQ user                                 |
+| `RABBITMQ_PASSWORD`                   | `svc_catalog_rmq`         | RabbitMQ password                             |
 | `MAIL_HOST`                           | `localhost`              | SMTP host                                     |
 | `MAIL_PORT`                           | `1025`                   | SMTP port (MailHog default)                   |
 | `MAIL_FROM`                           | `noreply@iqkv.dev`       | Sender address                                |
@@ -115,7 +100,7 @@ docker compose up -d
 | `SPRING_AI_OLLAMA_CHAT_OPTIONS_MODEL` | `llama3.2`               | Model to use (must be pulled in Ollama first) |
 | `ROLLOUT_MODE`                        | `MULTI_TENANT`           | Platform rollout mode                         |
 
-> Copy `.env.example` to `.env.local` / `.env.uat` / `.env.prd` and fill in values per environment. The defaults point to a local Ollama instance — no API key needed for local development. To switch to OpenAI or another provider, replace the `SPRING_AI_OLLAMA_*` variables with the corresponding `SPRING_AI_OPENAI_*` ones and add `SPRING_AI_OPENAI_API_KEY`.
+> Copy `.env.example` to `.env.local` / `.env.uat` / `.env.prd` and fill in values per environment. The defaults point to a local Ollama instance — no API key needed for local development.
 
 ## Maven Commands
 
@@ -140,7 +125,7 @@ docker compose up -d
 
 ```bash
 # Build image
-docker build -t iqkv/foundation-ai-chat-service:latest .
+docker build -t iqkv/docintelligence-catalog-service:latest .
 
 # Run with full platform stack
 docker compose -f compose.container.yaml up -d
@@ -159,16 +144,11 @@ docker compose -f compose.container.yaml up -d
 ## Project Structure
 
 ```
-src/main/java/com/iqkv/foundation/aichatservice/
-├── chat/             # Core Bounded Context: sessions, messages, LLM orchestration
-│   ├── domain/       # ChatSession, ChatMessage entities; ChatStore port
-│   ├── application/  # ChatService (use cases)
-│   └── adapter/
-│       ├── in/rest/  # ChatRestResource, AdminChatRestResource
-│       └── out/persistence/ # MyBatis implementation of ChatStore
-├── infrastructure/   # Technical concerns: Spring AI config, RabbitMQ, Security, MyBatis
+src/main/java/com/iqkv/docintelligence/catalogservice/
+├── ping/             # Example feature module — reachability probes across the three security tiers
+├── infrastructure/   # Technical concerns: Spring config, RabbitMQ, Security, MyBatis
 ├── shared/           # Common exceptions, utilities, value objects
-└── AiChatServiceApplication.java
+└── CatalogServiceApplication.java
 ```
 
 ## License
@@ -183,10 +163,10 @@ Please read our [Contributing Guidelines](.github/CONTRIBUTING.md) and [Code of 
 
 ## 🧩 Architecture
 
-- **Spring AI**: Ollama chat client configured via `spring.ai.ollama.*`; model is overridable per request; swap to any OpenAI-compatible provider by changing the auto-configuration dependency and `spring.ai.*` properties — no code changes needed
-- **Persistence**: MyBatis with XML mappers + PostgreSQL; Liquibase manages per-tenant schema migrations; `demo` context seeds example sessions in local/sit/uat
-- **Messaging**: RabbitMQ publisher for `AuditEvent` messages; `iqkv.messaging.rabbitmq.enabled` toggle — disabled in base profile, enabled per environment
-- **Security**: Spring Security + OAuth2 Resource Server; RS256 JWT validated via public key or JWKS URI; `@PreAuthorize` on every endpoint; tenant context resolved before request handling
+- **Ollama**: LLM connectivity configured via `spring.ai.ollama.*` (`SPRING_AI_OLLAMA_BASE_URL`, `SPRING_AI_OLLAMA_CHAT_OPTIONS_MODEL`)
+- **Persistence**: MyBatis with XML mappers + PostgreSQL; Liquibase manages schema migrations
+- **Messaging**: RabbitMQ consumer for tenant provisioning events; `iqkv.messaging.rabbitmq.enabled` toggle — disabled in base profile, enabled per environment
+- **Security**: Spring Security + OAuth2 Resource Server; RS256 JWT validated via public key or JWKS URI; `@PreAuthorize` on protected endpoints; tenant context resolved before request handling
 - **Multi-tenancy**: `ROLLOUT_MODE` (`MULTI_TENANT` | `SINGLE_TENANT`) — must be identical across all platform services
 - **Observability**: Micrometer + Prometheus; structured JSON logging with Logstash encoder; health probes for Kubernetes readiness/liveness
 - **Quality Tools**: Checkstyle, JaCoCo (60% gate), ArchUnit, commit convention enforcement

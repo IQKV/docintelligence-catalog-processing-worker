@@ -2,7 +2,7 @@
 # Spring Boot configuration for the "local" profile.
 # Overrides base: enables Liquibase with demo data, relaxes actuator,
 # enables debug logging.
-# Run infrastructure with: docker compose up postgres-aichat rabbitmq-aichat
+# Run infrastructure with: docker compose up postgres-catalog rabbitmq-catalog
 # ===================================================================
 
 spring:

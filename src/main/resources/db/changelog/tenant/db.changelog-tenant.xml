@@ -7,7 +7,6 @@
 
     <!-- Tenant-scoped (t_{tenantKey}) schema migrations.
          TenantLiquibaseRunner sets the search_path to t_{tenantKey} before running these.
-         MVP: no tenant-scoped tables — chat data lives in the system (public) schema
-         because users and conversations are global. -->
+         Add <include> entries below in timestamp order. -->
 
 </databaseChangeLog>

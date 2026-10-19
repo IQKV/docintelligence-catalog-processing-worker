@@ -35,6 +35,7 @@ build/
 
 ### VS Code ###
 .vscode/
-
+helm-chart
+.drone.yml
 CLAUDE.local.md
 .release-it.json

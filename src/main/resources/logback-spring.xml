@@ -7,7 +7,7 @@
     <property name="LOG_LEVEL_SECURITY" value="${LOG_LEVEL_SECURITY:-WARN}"/>
     <property name="LOG_LEVEL_SQL" value="${LOG_LEVEL_SQL:-WARN}"/>
     <property name="LOG_LEVEL_MESSAGING" value="${LOG_LEVEL_MESSAGING:-WARN}"/>
-    <property name="SERVICE_NAME" value="${spring.application.name:-foundation-ai-chat-service}"/>
+    <property name="SERVICE_NAME" value="${spring.application.name:-docintelligence-catalog-service}"/>
     <property name="ENVIRONMENT" value="${SPRING_PROFILES_ACTIVE:-unknown}"/>
 
     <!-- Console Appender - Text Format (default) -->

@@ -1,15 +1,15 @@
 services:
-  # PostgreSQL Database for AI Chat Service
-  postgres-aichat:
+  # PostgreSQL Database for Catalog Service
+  postgres-catalog:
     extends:
       file: compose.base.yaml
-      service: postgres-aichat
+      service: postgres-catalog
 
-  # RabbitMQ for AI Chat Service
-  rabbitmq-aichat:
+  # RabbitMQ for Catalog Service
+  rabbitmq-catalog:
     extends:
       file: compose.base.yaml
-      service: rabbitmq-aichat
+      service: rabbitmq-catalog
 
   # MailHog for local email testing
   mailhog:
@@ -29,27 +29,27 @@ services:
       file: compose.base.yaml
       service: ollama
 
-  # AiChatService - Full platform run including build phase
-  aichat-service:
+  # Catalog Service - Full platform run including build phase
+  catalog-service:
     extends:
       file: compose.base.yaml
-      service: aichat-service
+      service: catalog-service
 
 networks:
-  aichat-service-network:
-    name: foundation-aichat-network-dev
+  catalog-service-network:
+    name: foundation-catalog-network-dev
     external: false
 
 volumes:
-  postgres_aichat_data:
-    name: iqkv_aichat_postgres_data_dev
-  rabbitmq_aichat_data:
-    name: iqkv_aichat_rabbitmq_data_dev
-  dbgate_aichat_data:
-    name: iqkv_aichat_dbgate_data_dev
-  aichat_logs:
-    name: iqkv_aichat_logs_dev
-  aichat_tmp:
-    name: iqkv_aichat_tmp_dev
-  ollama_aichat_data:
-    name: iqkv_aichat_ollama_data_dev
+  postgres_catalog_data:
+    name: docintelligence_catalog_postgres_data_dev
+  rabbitmq_catalog_data:
+    name: docintelligence_catalog_rabbitmq_data_dev
+  dbgate_catalog_data:
+    name: docintelligence_catalog_dbgate_data_dev
+  catalog_logs:
+    name: docintelligence_catalog_logs_dev
+  catalog_tmp:
+    name: docintelligence_catalog_tmp_dev
+  ollama_catalog_data:
+    name: docintelligence_catalog_ollama_data_dev

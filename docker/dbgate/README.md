@@ -6,32 +6,32 @@ This directory contains the DbGate database administration tool configuration fo
 
 The `connections.jsonl` file contains pre-configured connections template for microservice infrastructure:
 
-### 1. PostgreSQL - AiChatService
+### 1. PostgreSQL - Catalog Service
 
-- **ID**: `postgres-aichat`
-- **Server**: `postgres-aichat:5432`
-- **Database**: `aichat`
-- **User**: `svc_aichat_dba`
+- **ID**: `postgres-catalog`
+- **Server**: `postgres-catalog:5432`
+- **Database**: `catalogservice`
+- **User**: `svc_catalog_dba`
 - **Engine**: `postgres@dbgate-plugin-postgres`
 
-### 2. RabbitMQ - AiChatService
+### 2. RabbitMQ - Catalog Service
 
-- **ID**: `rabbitmq-aichat`
-- **Server**: `rabbitmq-aichat:15672`
-- **User**: `svc_aichat_rmq`
+- **ID**: `rabbitmq-catalog`
+- **Server**: `rabbitmq-catalog:15672`
+- **User**: `svc_catalog_rmq`
 - **Engine**: `rabbitmq@dbgate-plugin-rabbitmq`
 
 ## Template Usage
 
 When creating a new microservice from this template:
 
-1. **Replace `aichat`** with your actual service name in `connections.jsonl`
+1. **Replace `catalog`** with your actual service name in `connections.jsonl`
 2. **Update credentials** if you changed them from defaults
 3. **Add additional connections** as needed (Redis, MinIO, etc.)
 
 ### Example: Creating "payment-service"
 
-Replace all occurrences of `aichat` with `payment`:
+Replace all occurrences of `catalog` with `payment`:
 
 ```json
 {"_id":"postgres-payment","engine":"postgres@dbgate-plugin-postgres","server":"postgres-payment","port":5432,"user":"svc_payment_dba","password":"svc_payment_dba","database":"payment","displayName":"PostgreSQL - Payment Service"}
@@ -94,13 +94,13 @@ As you extend your microservice, you may want to add connections for:
 ### Redis Cache
 
 ```json
-{ "_id": "redis-cache", "engine": "redis@dbgate-plugin-redis", "server": "redis-aichat", "port": 6379, "displayName": "Redis - Cache" }
+{ "_id": "redis-cache", "engine": "redis@dbgate-plugin-redis", "server": "redis-catalog", "port": 6379, "displayName": "Redis - Cache" }
 ```
 
 ### MinIO S3 Storage
 
 ```json
-{ "_id": "minio-s3", "engine": "s3@dbgate-plugin-s3", "server": "minio-aichat", "port": 9000, "user": "accesskey", "password": "secretkey", "displayName": "MinIO - S3 Storage" }
+{ "_id": "minio-s3", "engine": "s3@dbgate-plugin-s3", "server": "minio-catalog", "port": 9000, "user": "accesskey", "password": "secretkey", "displayName": "MinIO - S3 Storage" }
 ```
 
 ### Additional PostgreSQL Database
@@ -157,7 +157,7 @@ ports:
 
 ```bash
 # Check logs
-docker logs foundation-aichat-dbgate-dev
+docker logs foundation-catalog-dbgate-dev
 
 # Verify connections file exists
 ls docker/dbgate/connections.jsonl
@@ -170,26 +170,26 @@ docker compose restart dbgate
 
 ```bash
 # Verify PostgreSQL is running and healthy
-docker ps --filter name=foundation-aichat-postgres-dev
+docker ps --filter name=foundation-catalog-postgres-dev
 
 # Check PostgreSQL logs
-docker logs foundation-aichat-postgres-dev
+docker logs foundation-catalog-postgres-dev
 
 # Test connection from DbGate container
-docker exec foundation-aichat-dbgate-dev ping postgres-aichat
+docker exec foundation-catalog-dbgate-dev ping postgres-catalog
 ```
 
 ### Can't connect to RabbitMQ
 
 ```bash
 # Verify RabbitMQ is running
-docker ps --filter name=foundation-aichat-rabbitmq-dev
+docker ps --filter name=foundation-catalog-rabbitmq-dev
 
 # Check RabbitMQ logs
-docker logs foundation-aichat-rabbitmq-dev
+docker logs foundation-catalog-rabbitmq-dev
 
 # Check management plugin is enabled
-docker exec foundation-aichat-rabbitmq-dev rabbitmq-plugins list
+docker exec foundation-catalog-rabbitmq-dev rabbitmq-plugins list
 ```
 
 ### Port 3100 already in use
@@ -212,7 +212,7 @@ docker compose stop dbgate
 docker compose rm -f dbgate
 
 # Remove volume
-docker volume rm iqkv_aichat_dbgate_data_dev
+docker volume rm docintelligence_catalog_dbgate_data_dev
 
 # Restart
 docker compose up -d dbgate
@@ -242,7 +242,7 @@ When you use this template for a new service, DbGate is automatically included.
 
 When creating a new microservice from this template:
 
-- [ ] Replace `aichat` with your service name in `connections.jsonl`
+- [ ] Replace `catalog` with your service name in `connections.jsonl`
 - [ ] Update database credentials if changed from defaults
 - [ ] Update RabbitMQ credentials if changed from defaults
 - [ ] Add connections for additional infrastructure (Redis, MinIO, etc.)
