@@ -1,6 +1,6 @@
 {
-    "name": "@iqkv/foundation-microservice-project-layout",
-    "version": "0.3.0-SNAPSHOT",
+    "name": "@iqkv/foundation-ai-chat-service",
+    "version": "0.0.0-SNAPSHOT",
     "private": true,
     "description": "Provide an optional Git commit hooks.",
     "license": "Apache-2.0",
