@@ -39,12 +39,12 @@ All errors follow RFC 7807 `ProblemDetail` format:
 }
 ```
 
-| Status | When                                                   |
-| ------ | ------------------------------------------------------ |
-| 400    | Validation failure                                     |
-| 401    | Missing or invalid JWT                                 |
+| Status | When                                                    |
+| ------ | ------------------------------------------------------- |
+| 400    | Validation failure                                      |
+| 401    | Missing or invalid JWT                                  |
 | 403    | Insufficient authority (e.g. accessing admin endpoints) |
-| 500    | Unexpected internal error                              |
+| 500    | Unexpected internal error                               |
 
 ---
 
