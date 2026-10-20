@@ -31,6 +31,18 @@
             "type": "com.iqkv.foundation.tenancy.LiquibaseConfigurationProperties",
             "sourceType": "com.iqkv.foundation.tenancy.LiquibaseConfigurationProperties",
             "description": "Tenant-aware Liquibase migration configuration. This service owns no changelogs — migrations are run by docintelligence-catalog-service — and Liquibase is not on the classpath, so the tenant runner never activates."
+        },
+        {
+            "name": "iqkv.objectstorage",
+            "type": "com.iqkv.docintelligence.catalogprocessingworker.infrastructure.config.ObjectStorageConfigurationProperties",
+            "sourceType": "com.iqkv.docintelligence.catalogprocessingworker.infrastructure.config.ObjectStorageConfigurationProperties",
+            "description": "S3-compatible object storage configuration. Shares the catalog-assets bucket with docintelligence-catalog-service; supports MinIO (SIT/UAT) and AWS S3 (production)."
+        },
+        {
+            "name": "iqkv.objectstorage.upload",
+            "type": "com.iqkv.docintelligence.catalogprocessingworker.infrastructure.config.ObjectStorageConfigurationProperties$Upload",
+            "sourceType": "com.iqkv.docintelligence.catalogprocessingworker.infrastructure.config.ObjectStorageConfigurationProperties",
+            "description": "Upload policy constraints applied before an object is sent to storage."
         }
     ],
     "properties": [
@@ -134,6 +146,77 @@
             "type": "java.lang.Boolean",
             "description": "Registers the foundation-tenancy TenantLiquibaseRunner. Kept false here: this service runs no migrations and Liquibase is not on its classpath.",
             "defaultValue": false
+        },
+        {
+            "name": "iqkv.liquibase.system-change-log",
+            "type": "java.lang.String",
+            "description": "Classpath location of the system (public schema) Liquibase changelog. Inert here — declared to satisfy foundation-tenancy's @NotBlank binding and mirrored from docintelligence-catalog-service.",
+            "defaultValue": "db/changelog/system/db.changelog-system.xml"
+        },
+        {
+            "name": "iqkv.liquibase.tenant-change-log",
+            "type": "java.lang.String",
+            "description": "Classpath location of the per-tenant schema Liquibase changelog. Inert here — declared to satisfy foundation-tenancy's @NotBlank binding and mirrored from docintelligence-catalog-service.",
+            "defaultValue": "db/changelog/tenant/db.changelog-tenant.xml"
+        },
+        {
+            "name": "iqkv.objectstorage.endpoint",
+            "type": "java.lang.String",
+            "description": "S3-compatible endpoint URL. Use the MinIO in-cluster service URL for SIT/UAT, or https://s3.amazonaws.com for AWS S3 in production.",
+            "defaultValue": "http://localhost:9000"
+        },
+        {
+            "name": "iqkv.objectstorage.public-endpoint",
+            "type": "java.lang.String",
+            "description": "Publicly reachable object storage URL used to rewrite presigned URLs before returning them to external clients. When blank, presigned URLs are returned unchanged."
+        },
+        {
+            "name": "iqkv.objectstorage.access-key",
+            "type": "java.lang.String",
+            "description": "S3 / MinIO access key (username). Injected from a Kubernetes Secret in cluster environments.",
+            "defaultValue": "iqkv"
+        },
+        {
+            "name": "iqkv.objectstorage.secret-key",
+            "type": "java.lang.String",
+            "description": "S3 / MinIO secret key (password). Injected from a Kubernetes Secret in cluster environments.",
+            "defaultValue": "iqkv_password"
+        },
+        {
+            "name": "iqkv.objectstorage.bucket-name",
+            "type": "java.lang.String",
+            "description": "Name of the S3 bucket used to store catalog documents. Must match docintelligence-catalog-service — the bucket is shared.",
+            "defaultValue": "catalog-assets"
+        },
+        {
+            "name": "iqkv.objectstorage.region",
+            "type": "java.lang.String",
+            "description": "AWS region identifier. Required by the S3 client even when connecting to MinIO.",
+            "defaultValue": "us-east-1"
+        },
+        {
+            "name": "iqkv.objectstorage.ssl",
+            "type": "java.lang.Boolean",
+            "description": "Whether to use HTTPS when connecting to the object storage endpoint. Must be true in production.",
+            "defaultValue": false
+        },
+        {
+            "name": "iqkv.objectstorage.upload.max-file-size-bytes",
+            "type": "java.lang.Long",
+            "description": "Maximum allowed upload file size in bytes. Requests exceeding this limit are rejected before reaching storage.",
+            "defaultValue": 5242880
+        },
+        {
+            "name": "iqkv.objectstorage.upload.presigned-url-expiration-minutes",
+            "type": "java.lang.Integer",
+            "description": "Lifetime of a pre-signed PUT or GET URL in minutes.",
+            "defaultValue": 60
+        },
+        {
+            "name": "iqkv.objectstorage.upload.allowed-mime-types",
+            "type": "java.util.List<java.lang.String>",
+            "description": "Comma-separated list of accepted MIME types. Uploads with a Content-Type not in this list are rejected.",
+            "defaultValue": "application/pdf,image/jpeg,image/png,image/webp,image/tiff,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         }
     ],
     "hints": [
@@ -160,6 +243,46 @@
                 {
                     "value": false,
                     "description": "Disable RabbitMQ — base profile default."
+                }
+            ]
+        },
+        {
+            "name": "iqkv.objectstorage.endpoint",
+            "values": [
+                {
+                    "value": "http://xeon-dual-minio:9000",
+                    "description": "In-cluster MinIO endpoint (Docker Compose / local demo stack)."
+                },
+                {
+                    "value": "https://s3.amazonaws.com",
+                    "description": "AWS S3 production endpoint (region resolver picks the bucket region)."
+                }
+            ]
+        },
+        {
+            "name": "iqkv.objectstorage.ssl",
+            "values": [
+                {
+                    "value": true,
+                    "description": "Use HTTPS — required for production and AWS S3."
+                },
+                {
+                    "value": false,
+                    "description": "Use HTTP — local MinIO over the Docker network only."
+                }
+            ]
+        },
+        {
+            "name": "iqkv.objectstorage.region",
+            "values": [
+                {
+                    "value": "us-east-1"
+                },
+                {
+                    "value": "us-west-2"
+                },
+                {
+                    "value": "eu-central-1"
                 }
             ]
         }

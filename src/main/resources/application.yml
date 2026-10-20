@@ -72,6 +72,23 @@ iqkv:
       # Controlled via MESSAGING_ENABLED env var; defaults to false for local safety.
       # Helm chart configmap sets this per environment (sit/uat/prd).
       enabled: ${MESSAGING_ENABLED:false}
+  objectstorage:
+    # Shares the catalog-assets bucket with docintelligence-catalog-service — the worker reads
+    # the objects the service presigns and writes back derived artefacts, so bucket name and
+    # credentials must match the service's configuration.
+    endpoint: ${OBJECTSTORAGE_ENDPOINT:http://localhost:9000}
+    # Public URL used to rewrite presigned URLs returned to external clients.
+    # Leave blank to return presigned URLs unchanged (local dev, AWS S3).
+    public-endpoint: ${OBJECTSTORAGE_PUBLIC_ENDPOINT:}
+    access-key: ${OBJECTSTORAGE_ACCESS_KEY:iqkv}
+    secret-key: ${OBJECTSTORAGE_SECRET_KEY:iqkv_password}
+    bucket-name: ${OBJECTSTORAGE_BUCKET_NAME:catalog-assets}
+    region: ${OBJECTSTORAGE_REGION:us-east-1}
+    ssl: ${OBJECTSTORAGE_SSL:false}
+    upload:
+      max-file-size-bytes: ${OBJECTSTORAGE_UPLOAD_MAX_FILE_SIZE_BYTES:5242880}
+      presigned-url-expiration-minutes: ${OBJECTSTORAGE_UPLOAD_PRESIGNED_URL_EXPIRATION_MINUTES:60}
+      allowed-mime-types: ${OBJECTSTORAGE_UPLOAD_ALLOWED_MIME_TYPES:application/pdf,image/jpeg,image/png,image/webp,image/tiff,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document}
   platform:
     # Platform-wide operational mode: MULTI_TENANT (default) or SINGLE_TENANT.
     # Must be the same value across all core services (IAM, Billing, CMS, etc.).
@@ -89,6 +106,11 @@ iqkv:
     # Liquibase is not on this service's classpath, so TenantLiquibaseRunner is never
     # created. The flag is kept explicit to document the intent.
     tenant-runner-enabled: false
+    # foundation-tenancy binds these once a validation provider is present on the classpath,
+    # and its @NotBlank constraints require non-blank values. Both paths are inert here
+    # (no Liquibase, no runner) and mirror docintelligence-catalog-service for consistency.
+    system-change-log: db/changelog/system/db.changelog-system.xml
+    tenant-change-log: db/changelog/tenant/db.changelog-tenant.xml
 
 git:
   build_time: "@git.build.time@"
