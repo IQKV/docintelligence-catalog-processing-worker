@@ -68,6 +68,12 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- Tenancy: TenantContext + MyBatis schema interceptor (no migrations here) -->
+        <dependency>
+            <groupId>com.iqkv</groupId>
+            <artifactId>foundation-tenancy</artifactId>
+        </dependency>
+
         <!-- AI: Spring AI Ollama -->
         <dependency>
             <groupId>org.springframework.ai</groupId>

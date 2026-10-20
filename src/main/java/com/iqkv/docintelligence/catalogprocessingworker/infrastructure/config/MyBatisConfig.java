@@ -20,6 +20,7 @@ import java.util.UUID;
 import javax.sql.DataSource;
 
 import com.iqkv.docintelligence.catalogprocessingworker.infrastructure.mybatis.UuidTypeHandler;
+import com.iqkv.foundation.tenancy.MyBatisSchemaInterceptor;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.mybatis.spring.SqlSessionFactoryBean;
 import org.springframework.context.annotation.Bean;
@@ -27,7 +28,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 
 /**
- * MyBatis configuration: mapper locations, naming strategy and type handlers.
+ * MyBatis configuration: mapper locations, naming strategy, type handlers and the
+ * tenant schema interceptor.
  */
 @Configuration
 public class MyBatisConfig {
@@ -44,6 +46,9 @@ public class MyBatisConfig {
     final org.apache.ibatis.session.Configuration config =
         new org.apache.ibatis.session.Configuration();
     config.setMapUnderscoreToCamelCase(true);
+    // Switches every statement to the tenant schema (t_<tenantKey>) while a TenantContext
+    // is active, and leaves the default schema untouched otherwise.
+    config.addInterceptor(new MyBatisSchemaInterceptor());
     config.getTypeHandlerRegistry().register(UUID.class, UuidTypeHandler.class);
     factory.setConfiguration(config);
 

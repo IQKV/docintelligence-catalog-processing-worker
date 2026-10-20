@@ -17,6 +17,20 @@
             "type": "com.iqkv.docintelligence.catalogprocessingworker.infrastructure.config.MessagingConfigurationProperties",
             "sourceType": "com.iqkv.docintelligence.catalogprocessingworker.infrastructure.config.MessagingConfigurationProperties",
             "description": "RabbitMQ messaging toggles. 'enabled' drives @ConditionalOnProperty in RabbitMQConfig."
+        },
+        {
+            "name": "iqkv.platform",
+            "description": "Platform-wide operational settings. Must be consistent across all core services (IAM, Billing, CMS, etc.) — all read the same ROLLOUT_MODE env var. This service declares them in application.yml for consistency but has no local binding class."
+        },
+        {
+            "name": "iqkv.tenancy",
+            "description": "Tenancy settings shared by the platform. This service declares them in application.yml for consistency but has no local binding class; tenant routing is handled by the foundation-tenancy library."
+        },
+        {
+            "name": "iqkv.liquibase",
+            "type": "com.iqkv.foundation.tenancy.LiquibaseConfigurationProperties",
+            "sourceType": "com.iqkv.foundation.tenancy.LiquibaseConfigurationProperties",
+            "description": "Tenant-aware Liquibase migration configuration. This service owns no changelogs — migrations are run by docintelligence-catalog-service — and Liquibase is not on the classpath, so the tenant runner never activates."
         }
     ],
     "properties": [
@@ -79,9 +93,63 @@
             "type": "java.lang.Boolean",
             "description": "Enables RabbitMQ messaging. When false, RabbitMQConfig is skipped. Defaults to false for local safety; the Helm chart configmap sets MESSAGING_ENABLED per environment (sit/uat/prd).",
             "defaultValue": false
+        },
+        {
+            "name": "iqkv.platform.rollout-mode",
+            "type": "java.lang.String",
+            "description": "Platform-wide operational mode. Must match across all core services. MULTI_TENANT: each signup creates a new tenant. SINGLE_TENANT: all users join a single pre-provisioned tenant.",
+            "defaultValue": "MULTI_TENANT"
+        },
+        {
+            "name": "iqkv.tenancy.default-tenant-key",
+            "type": "java.lang.String",
+            "description": "NanoID key of the default tenant used in SINGLE_TENANT mode. Format: 8 characters using alphabet [a-z0-9]."
+        },
+        {
+            "name": "iqkv.tenancy.default-tenant-name",
+            "type": "java.lang.String",
+            "description": "Display name for the default tenant in SINGLE_TENANT mode.",
+            "defaultValue": "Acme Corp."
+        },
+        {
+            "name": "iqkv.tenancy.schema-prefix",
+            "type": "java.lang.String",
+            "description": "PostgreSQL schema name prefix for tenant schemas resolved by MyBatisSchemaInterceptor.",
+            "defaultValue": "t_"
+        },
+        {
+            "name": "iqkv.tenancy.default-schema",
+            "type": "java.lang.String",
+            "description": "Default (system) schema name used when no tenant context is active.",
+            "defaultValue": "public"
+        },
+        {
+            "name": "iqkv.tenancy.provisioning-timeout",
+            "type": "java.time.Duration",
+            "description": "Maximum time allowed for tenant schema provisioning.",
+            "defaultValue": "PT10M"
+        },
+        {
+            "name": "iqkv.liquibase.tenant-runner-enabled",
+            "type": "java.lang.Boolean",
+            "description": "Registers the foundation-tenancy TenantLiquibaseRunner. Kept false here: this service runs no migrations and Liquibase is not on its classpath.",
+            "defaultValue": false
         }
     ],
     "hints": [
+        {
+            "name": "iqkv.platform.rollout-mode",
+            "values": [
+                {
+                    "value": "MULTI_TENANT",
+                    "description": "Multi-tenant mode: each signup creates a new tenant."
+                },
+                {
+                    "value": "SINGLE_TENANT",
+                    "description": "Single-tenant mode: all users join a single pre-provisioned tenant."
+                }
+            ]
+        },
         {
             "name": "iqkv.messaging.rabbitmq.enabled",
             "values": [

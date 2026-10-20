@@ -72,6 +72,23 @@ iqkv:
       # Controlled via MESSAGING_ENABLED env var; defaults to false for local safety.
       # Helm chart configmap sets this per environment (sit/uat/prd).
       enabled: ${MESSAGING_ENABLED:false}
+  platform:
+    # Platform-wide operational mode: MULTI_TENANT (default) or SINGLE_TENANT.
+    # Must be the same value across all core services (IAM, Billing, CMS, etc.).
+    rollout-mode: ${ROLLOUT_MODE:MULTI_TENANT}
+  tenancy:
+    # Declared for platform consistency — tenant routing comes from foundation-tenancy
+    # (TenantContext + MyBatisSchemaInterceptor). Defaults match docintelligence-catalog-service.
+    default-tenant-key: platform
+    default-tenant-name: ${DEFAULT_TENANT_NAME:Acme Corp.}
+    schema-prefix: t_
+    default-schema: public
+    provisioning-timeout: PT10M
+  liquibase:
+    # This service owns no changelogs — docintelligence-catalog-service runs them, and
+    # Liquibase is not on this service's classpath, so TenantLiquibaseRunner is never
+    # created. The flag is kept explicit to document the intent.
+    tenant-runner-enabled: false
 
 git:
   build_time: "@git.build.time@"
