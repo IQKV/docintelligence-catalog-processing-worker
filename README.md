@@ -30,14 +30,6 @@ This template provides:
 - **Observability** — Micrometer + Prometheus + structured JSON logging (Logstash encoder); Actuator HTTP endpoints (the only use of Spring Web)
 - **Quality tools** — Checkstyle, JaCoCo, ArchUnit, Husky git hooks, commitlint
 
-## Template Usage
-
-1. Click **[Use this template](https://github.com/IQKV/docintelligence-catalog-processing-worker/generate)** to create your repository
-2. Replace all `catalog` / `CatalogService` tokens with your service name (see the token map in `foundation-microservice-project-layout`)
-3. Update `pom.xml` — `artifactId`, `name`, `description`, `start-class`
-4. Rename the Java package from `com.iqkv.docintelligence.catalogprocessingworker` to your package
-5. Add your own feature modules under the root package
-
 ## Quick Links
 
 - [Architecture Overview](./docs/architecture/README.md)
