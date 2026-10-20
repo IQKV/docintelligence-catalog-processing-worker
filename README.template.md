@@ -1,8 +1,5 @@
 # Document Intelligence Catalog Processing Worker 📇
 
-> **Template skeleton.** Replace this content when you create your repository from the template.
-> Repository development details live in [`README.md`](./README.md).
-
 An event-driven companion worker on the iQ Key Value platform, backed by PostgreSQL, RabbitMQ, and Ollama.
 
 ## Service Role
