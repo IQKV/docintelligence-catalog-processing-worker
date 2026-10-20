@@ -4,7 +4,7 @@
 
 spring:
   application:
-    name: docintelligence-catalog-service
+    name: docintelligence-catalog-processing-worker
   datasource:
     url: jdbc:postgresql://${iqkv.db.host}:${iqkv.db.port}/${iqkv.db.name}
     username: ${iqkv.db.username}
@@ -17,7 +17,7 @@ spring:
     listener:
       simple:
         # A rejected delivery must not be requeued immediately, otherwise a poison
-        # tenant event loops until its 24h TTL expires. After the bounded retries
+        # message loops until its 24h TTL expires. After the bounded retries
         # below the message is dead-lettered to SERVICE_DLQ for inspection.
         default-requeue-rejected: false
         retry:
@@ -26,15 +26,6 @@ spring:
           initial-interval: 2s
           multiplier: 2.0
           max-interval: 30s
-  liquibase:
-    enabled: false
-    change-log: classpath:db/changelog/system/db.changelog-system.xml
-  autoconfigure:
-    exclude: org.springframework.boot.autoconfigure.liquibase.LiquibaseAutoConfiguration
-  messages:
-    basename: i18n/messages
-    encoding: UTF-8
-    fallback-to-system-locale: false
   ai:
     ollama:
       base-url: ${SPRING_AI_OLLAMA_BASE_URL:http://localhost:11434}
@@ -42,7 +33,7 @@ spring:
         model: ${SPRING_AI_OLLAMA_CHAT_OPTIONS_MODEL:llama3.2}
 
 mybatis:
-  mapper-locations: classpath:mappers/**/*.xml
+  mapper-locations: classpath*:mappers/**/*.xml
   configuration:
     map-underscore-to-camel-case: true
 
@@ -50,13 +41,6 @@ server:
   port: 8080
   forward-headers-strategy: framework
   shutdown: graceful
-
-springdoc:
-  api-docs:
-    path: /api-docs
-  swagger-ui:
-    path: /swagger-ui.html
-    operationsSorter: method
 
 management:
   server:
@@ -88,39 +72,6 @@ iqkv:
       # Controlled via MESSAGING_ENABLED env var; defaults to false for local safety.
       # Helm chart configmap sets this per environment (sit/uat/prd).
       enabled: ${MESSAGING_ENABLED:false}
-  platform:
-    # Platform-wide operational mode: MULTI_TENANT (default) or SINGLE_TENANT.
-    # Must be the same value across all core services (IAM, Billing, CMS, etc.).
-    rollout-mode: ${ROLLOUT_MODE:MULTI_TENANT}
-  tenancy:
-    # Default tenant key for SINGLE_TENANT mode (optional).
-    # Format: 8-character NanoID using alphabet [a-z0-9], e.g. abc12345
-    default-tenant-key: platform
-    # Display name for the default tenant in SINGLE_TENANT mode
-    default-tenant-name: ${DEFAULT_TENANT_NAME:Acme Corp.}
-    schema-prefix: t_
-    default-schema: public
-    provisioning-timeout: PT10M
-  liquibase:
-    tenant-runner-enabled: true
-    system-change-log: db/changelog/system/db.changelog-system.xml
-    tenant-change-log: db/changelog/tenant/db.changelog-tenant.xml
-  billing:
-    # Billing service base URL used for quota / plan enforcement
-    service-url: ${BILLING_SERVICE_URI:http://foundation-billing-service}
-    # How often the plan catalog cache is refreshed (ISO-8601 duration)
-    plan-refresh-interval: ${BILLING_PLAN_REFRESH_INTERVAL:PT10M}
-  auth:
-    jwt:
-      # --- Deployed (K8s) — set JWT_JWKS_URI in Helm values / K8s configmap ---
-      # JWKS URI of the IAM service. Keys are fetched, cached, and refreshed automatically
-      # when a JWT carries an unknown kid — enabling transparent key rotation.
-      # Leave blank (or unset JWT_JWKS_URI) to fall back to public-key-path below.
-      # Example: http://foundation-iam-service/.well-known/jwks.json
-      jwks-uri: ${JWT_JWKS_URI:}
-      # --- Local development and tests — ignored when jwks-uri is set ---
-      # Path to the RSA public key PEM. Accepts classpath: (tests) or file: resources.
-      public-key-path: ${JWT_PUBLIC_KEY_PATH:classpath:keys/public.pem}
 
 git:
   build_time: "@git.build.time@"

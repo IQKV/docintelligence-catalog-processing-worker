@@ -10,8 +10,6 @@ spring:
     username: sa
     password: ""
     driver-class-name: org.h2.Driver
-  liquibase:
-    enabled: false
   ai:
     ollama:
       base-url: http://localhost:11434
@@ -24,12 +22,6 @@ spring:
       - org.springframework.ai.autoconfigure.ollama.OllamaAutoConfiguration
 
 iqkv:
-  liquibase:
-    tenant-runner-enabled: false # Disables TenantLiquibaseRunner on startup; tests manage schema setup themselves
   messaging:
     rabbitmq:
       enabled: false
-  auth:
-    jwt:
-      jwks-uri: ""
-      public-key-path: "classpath:keys/public.pem"

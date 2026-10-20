@@ -194,7 +194,7 @@ endpoint. Here's a comprehensive summary of everything I did:
 • Implemented the login method with proper validation
 • Added JWT token generation logic
 • Created comprehensive unit tests
-• Updated the OpenAPI documentation
+• Updated the API documentation
 
 All tests are passing successfully and the code is ready for review.
 ```
@@ -270,9 +270,8 @@ Before making recommendations, agents should understand the project's technology
 
 **Security**
 
-- Spring Security
+- Spring Security (if configured)
 - JWT authentication (if configured)
-- Method-level security with `@PreAuthorize`
 
 **Testing**
 
@@ -280,11 +279,6 @@ Before making recommendations, agents should understand the project's technology
 - Mockito for mocking
 - Testcontainers for integration tests (if configured)
 - ArchUnit for architecture validation
-
-**API Documentation**
-
-- SpringDoc OpenAPI 3
-- Swagger UI
 
 **AI**
 
@@ -541,13 +535,11 @@ public class UserService {
 @RestController
 @RequestMapping("/api/v1/users")
 @RequiredArgsConstructor
-@Tag(name = "User Management")
 public class UserController {
 
   private final UserService userService;
 
   @GetMapping("/{id}")
-  @Operation(summary = "Get user by ID")
   public ResponseEntity<UserDto> getUser(@PathVariable Long id) {
     return userService.findById(id).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
   }
@@ -619,13 +611,13 @@ class UserServiceIntegrationTest {
 **Architecture Tests with ArchUnit:**
 
 ```java
-@AnalyzeClasses(packagesOf = CatalogServiceApplication.class, importOptions = DoNotIncludeTests.class)
+@AnalyzeClasses(packagesOf = CatalogProcessingWorkerApplication.class, importOptions = DoNotIncludeTests.class)
 class TechnicalStructureTest {
 
   @ArchTest
   static final ArchRule respectsTechnicalArchitectureLayers = onionArchitecture()
       .withOptionalLayers(true)
-      .ignoreDependency(belongToAnyOf(CatalogServiceApplication.class), alwaysTrue());
+      .ignoreDependency(belongToAnyOf(CatalogProcessingWorkerApplication.class), alwaysTrue());
 }
 ```
 
@@ -775,7 +767,6 @@ review_checklist:
         - Integration tests for critical paths
 
     documentation:
-        - OpenAPI annotations on endpoints
         - Complex logic documented
         - README updated if needed
 ```
@@ -793,7 +784,6 @@ authentication:
 
 authorization:
   - [ ] Role-based access control
-  - [ ] Method-level security with @PreAuthorize
   - [ ] User can only access own data
 
 input_validation:
@@ -892,7 +882,7 @@ A task is evaluated as done only when all of the following hold:
 | Any change                                                      | `./mvnw -q compile`, then the narrowest targeted `./mvnw test -Dtest=ClassName`            |
 | Domain / application / service logic                            | Unit tests (JUnit 5 + Mockito, AAA); a new non-trivial branch, loop or parser needs a test |
 | MyBatis mapper (interface or XML)                               | Service-level test covering the mapper path, then full `./mvnw verify`                     |
-| REST controller, Spring Security, `@PreAuthorize`, tenant guard | Security test, then full `./mvnw verify`                                                   |
+| REST controller, Spring Security, tenant guard                  | Security test, then full `./mvnw verify`                                                   |
 | Liquibase changelog                                             | Full `./mvnw verify` — the Spring context and schema must load cleanly                     |
 | Package/layer move, new bounded context                         | ArchUnit `TechnicalStructureTest`, then full `./mvnw verify`                               |
 | Dependency or build config                                      | Full `./mvnw verify`                                                                       |
@@ -940,23 +930,6 @@ jobs:
 ```
 
 ## 📚 Documentation Standards
-
-### API Documentation with OpenAPI
-
-```java
-@RestController
-@RequestMapping("/api/v1/users")
-@Tag(name = "User Management", description = "User operations")
-public class UserController {
-
-  @GetMapping("/{id}")
-  @Operation(summary = "Get user by ID", description = "Retrieves a user by their unique identifier")
-  @ApiResponses({ @ApiResponse(responseCode = "200", description = "User found"), @ApiResponse(responseCode = "404", description = "User not found") })
-  public ResponseEntity<UserDto> getUser(@Parameter(description = "User ID", example = "1") @PathVariable Long id) {
-    return userService.findById(id).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
-  }
-}
-```
 
 ### Code Documentation
 
@@ -1070,7 +1043,6 @@ public class MyService {
 public class MyController {
 
   @PostMapping
-  @Operation(summary = "Create resource")
   public ResponseEntity<MyDto> create(@Valid @RequestBody CreateRequest request) {
     return ResponseEntity.status(HttpStatus.CREATED).body(myService.create(request));
   }

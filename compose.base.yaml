@@ -64,17 +64,6 @@ services:
       start_period: 60s
     restart: unless-stopped
 
-  # MailHog for local email testing
-  mailhog:
-    image: mailhog/mailhog:v1.0.1
-    container_name: foundation-catalog-mailhog-dev
-    ports:
-      - "1025:1025" # SMTP
-      - "8025:8025" # Web UI
-    networks:
-      - catalog-service-network
-    restart: unless-stopped
-
   # DbGate - Database Administration Tool
   dbgate:
     image: dbgate/dbgate:5.3.3
@@ -108,12 +97,12 @@ services:
       context: .
       dockerfile: ./Dockerfile
       target: builder
-    image: iqkv/docintelligence-catalog-service:local
-    container_name: docintelligence-catalog-service-dev
+    image: iqkv/docintelligence-catalog-processing-worker:local
+    container_name: docintelligence-catalog-processing-worker-dev
     environment:
       # Spring Configuration
       SPRING_PROFILES_ACTIVE: local
-      SPRING_APPLICATION_NAME: docintelligence-catalog-service
+      SPRING_APPLICATION_NAME: docintelligence-catalog-processing-worker
 
       # Database Configuration
       DB_HOST: postgres-catalog
@@ -128,17 +117,9 @@ services:
       RABBITMQ_USERNAME: svc_catalog_rmq
       RABBITMQ_PASSWORD: svc_catalog_rmq
 
-      # Mail Configuration (MailHog)
-      MAIL_HOST: mailhog
-      MAIL_PORT: 1025
-      MAIL_USERNAME: ""
-      MAIL_PASSWORD: ""
-      MAIL_FROM: noreply@iqkv.dev
-      MAIL_REPLY_TO: ""
-
       # Observability
-      OTEL_SERVICE_NAME: docintelligence-catalog-service
-      OTEL_RESOURCE_ATTRIBUTES: service.name=docintelligence-catalog-service,service.version=1.0.0,deployment.environment=dev
+      OTEL_SERVICE_NAME: docintelligence-catalog-processing-worker
+      OTEL_RESOURCE_ATTRIBUTES: service.name=docintelligence-catalog-processing-worker,service.version=1.0.0,deployment.environment=dev
 
       # JVM Configuration
       JAVA_OPTS: >-
@@ -149,17 +130,11 @@ services:
         -XX:MaxRAMPercentage=75.0
         -Djava.security.egd=file:/dev/./urandom
 
-      # JWT / Authentication
-      # Uses the classpath PEM for local dev — no IAM service dependency.
-      # In K8s, JWT_JWKS_URI is injected by the Helm configmap instead.
-      JWT_PUBLIC_KEY_PATH: "classpath:keys/public.pem"
-      JWT_JWKS_URI: ""
-
       # Ollama — local LLM inference
       SPRING_AI_OLLAMA_BASE_URL: "http://ollama:11434"
       SPRING_AI_OLLAMA_CHAT_OPTIONS_MODEL: "llama3.2"
     ports:
-      - "8080:8080" # Catalog Service API
+      - "8080:8080" # Application port
       - "8081:8081" # Actuator / management
     depends_on:
       postgres-catalog:
@@ -250,7 +225,7 @@ services:
 networks:
   catalog-service-network:
     driver: bridge
-    name: docintelligence-catalog-service-network-dev
+    name: docintelligence-catalog-processing-worker-network-dev
     ipam:
       config:
         # Pick a unique /16 block for each new service to avoid subnet conflicts.
@@ -261,7 +236,7 @@ networks:
         #   172.23.0.0/16  — foundation-gateway-service
         #   172.24.0.0/16  — foundation-cms-service
         #   172.25.0.0/16  — foundation-audit-service
-        #   172.26.0.0/16  — docintelligence-catalog-service
+        #   172.26.0.0/16  — docintelligence-catalog-processing-worker
         #   172.27.0.0/16  — next available
         - subnet: 172.26.0.0/16
 

@@ -1,18 +1,7 @@
 # ===================================================================
 # Spring Boot configuration for the "prd" profile.
-# Overrides base: all secrets via env vars (no defaults), hardens
-# actuator/swagger.
+# Overrides base: all secrets via env vars (no defaults), hardens actuator.
 # ===================================================================
-
-spring:
-  liquibase:
-    contexts: "!demo"
-
-springdoc:
-  api-docs:
-    enabled: false
-  swagger-ui:
-    enabled: false
 
 management:
   endpoint:
@@ -31,6 +20,3 @@ iqkv:
     port: ${RABBITMQ_PORT}
     username: ${RABBITMQ_USERNAME}
     password: ${RABBITMQ_PASSWORD}
-  auth:
-    jwt:
-      jwks-uri: ${JWT_JWKS_URI}

@@ -1,34 +1,31 @@
 # Document Intelligence Catalog Service 🚀
 
-GitHub template for the iQ Key Value platform. Extends the standard `foundation-microservice-project-layout` with a multi-tenant, JWT-secured service backed by PostgreSQL, RabbitMQ, and Ollama.
+GitHub template for the iQ Key Value platform. Extends the standard `foundation-microservice-project-layout` with a service backed by PostgreSQL, RabbitMQ, and Ollama.
 
 ## About
 
 This template provides:
 
-- **Maven single-module layout** — standard `src/main/java` structure with MyBatis, PostgreSQL, Liquibase, and RabbitMQ wired up
+- **Maven single-module layout** — standard `src/main/java` structure with MyBatis, PostgreSQL, and RabbitMQ wired up
 - **Ollama connectivity** — LLM client wired to a local Ollama instance via `spring.ai.ollama.*` (base URL and model configurable per environment)
 - **Multi-profile Spring config** — `local`, `sit`, `uat`, `prd` profiles with correct defaults per environment
-- **Docker Compose** — `compose.base.yaml` with PostgreSQL, RabbitMQ, MailHog, SonarQube, Prometheus, and Grafana; `compose.container.yaml` for full runtime stack including the service container
+- **Docker Compose** — `compose.base.yaml` with PostgreSQL, RabbitMQ, DbGate, Ollama, SonarQube, Prometheus, and Grafana; `compose.container.yaml` for full runtime stack including the service container
 - **Dockerfile** — multi-stage build with layered JAR extraction, non-root `appuser`, and JVM tuning
 - **Database Initialization** — `docker/postgres/init-catalog.sql` for automated schema and extension setup
-- **Security** — Spring Security + OAuth2 Resource Server (RS256 JWT) pre-configured
-- **Messaging** — RabbitMQ consumer for IAM tenant provisioning events (`tenant.created` / `tenant.updated`) with bounded retries and a dead-letter queue
-- **Observability** — Micrometer + Prometheus + structured JSON logging (Logstash encoder)
+- **Messaging** — RabbitMQ exchange, queue and dead-letter wiring pre-configured on `iqkv.events`
+- **Observability** — Micrometer + Prometheus + structured JSON logging (Logstash encoder); Actuator HTTP endpoints (the only use of Spring Web)
 - **Quality tools** — Checkstyle, JaCoCo, ArchUnit, Husky git hooks, commitlint
 
 ## Template Usage
 
-1. Click **[Use this template](https://github.com/IQKV/docintelligence-catalog-service/generate)** to create your repository
+1. Click **[Use this template](https://github.com/IQKV/docintelligence-catalog-processing-worker/generate)** to create your repository
 2. Replace all `catalog` / `CatalogService` tokens with your service name (see the token map in `foundation-microservice-project-layout`)
 3. Update `pom.xml` — `artifactId`, `name`, `description`, `start-class`
-4. Rename the Java package from `com.iqkv.docintelligence.catalogservice` to your package
-5. Add your own feature modules — see the `ping` package for the reference layout
-6. Remove unused dependencies from `pom.xml` (e.g. `shedlock` if no scheduled jobs needed)
+4. Rename the Java package from `com.iqkv.docintelligence.catalogprocessingworker` to your package
+5. Add your own feature modules under the root package
 
 ## Quick Links
 
-- [API Documentation](./docs/api/README.md)
 - [Architecture Overview](./docs/architecture/README.md)
 - [Deployment Guide](./docs/deployment/README.md)
 - [Contributing Guidelines](.github/CONTRIBUTING.md)
@@ -38,12 +35,9 @@ This template provides:
 - Java 25 / Spring Boot (latest via parent POM)
 - Spring AI Ollama starter (local LLM connectivity)
 - MyBatis 3.x (no JPA) + PostgreSQL 17
-- Liquibase for schema migrations
 - RabbitMQ for async messaging
-- Spring Security + OAuth2 Resource Server (RS256 JWT)
-- ShedLock for distributed scheduled jobs
 - Micrometer + Prometheus
-- springdoc-openapi (Swagger UI)
+- Spring Web — Actuator endpoints only
 
 ## Prerequisites
 
@@ -57,7 +51,7 @@ This template provides:
 
 ```bash
 # Clone or use as template
-git clone https://github.com/IQKV/docintelligence-catalog-service.git my-service
+git clone https://github.com/IQKV/docintelligence-catalog-processing-worker.git my-service
 cd my-service
 
 # Install git hooks
@@ -70,15 +64,12 @@ ollama pull llama3.2
 cp .env.example .env.local
 # Defaults point to Ollama on localhost:11434 — no API key needed for local dev
 
-# Start dependencies (PostgreSQL, RabbitMQ, MailHog, etc.)
+# Start dependencies (PostgreSQL, RabbitMQ, etc.)
 docker compose up -d
 
 # Run the service
 ./mvnw spring-boot:run -Pdev
-# → API:      http://localhost:8080
 # → Actuator: http://localhost:8081/actuator/health
-# → Swagger:  http://localhost:8080/swagger-ui.html
-# → MailHog:  http://localhost:8025
 ```
 
 ## Environment Variables
@@ -94,12 +85,8 @@ docker compose up -d
 | `RABBITMQ_PORT`                       | `5672`                   | RabbitMQ AMQP port                    |
 | `RABBITMQ_USERNAME`                   | `svc_catalog_rmq`        | RabbitMQ user                         |
 | `RABBITMQ_PASSWORD`                   | `svc_catalog_rmq`        | RabbitMQ password                     |
-| `MAIL_HOST`                           | `localhost`              | SMTP host (MailHog)                   |
-| `MAIL_PORT`                           | `1025`                   | SMTP port                             |
-| `MAIL_FROM`                           | `noreply@iqkv.dev`       | Default sender email                  |
 | `SPRING_AI_OLLAMA_BASE_URL`           | `http://localhost:11434` | Ollama server URL                     |
 | `SPRING_AI_OLLAMA_CHAT_OPTIONS_MODEL` | `llama3.2`               | Model name (must be pulled in Ollama) |
-| `ROLLOUT_MODE`                        | `MULTI_TENANT`           | Platform rollout mode                 |
 
 > Copy `.env.example` to `.env.local` / `.env.uat` / `.env.prd` and fill in values per environment.
 
@@ -126,7 +113,7 @@ docker compose up -d
 
 ```bash
 # Build image
-docker build -t iqkv/docintelligence-catalog-service:latest .
+docker build -t iqkv/docintelligence-catalog-processing-worker:latest .
 
 # Run full stack (service + dependencies)
 docker compose -f compose.container.yaml up -d
@@ -139,8 +126,6 @@ docker compose -f compose.container.yaml up -d
 | `GET /actuator/health`     | Liveness + readiness probes |
 | `GET /actuator/metrics`    | Application metrics         |
 | `GET /actuator/prometheus` | Prometheus scrape endpoint  |
-| `GET /swagger-ui.html`     | API documentation           |
-| `GET /` (on port 8025)     | MailHog Web UI              |
 
 ## Project Structure
 
@@ -150,12 +135,9 @@ docker compose -f compose.container.yaml up -d
 │   ├── postgres/       # DB initialization scripts (init-catalog.sql)
 │   ├── prometheus/     # Prometheus configuration
 │   └── grafana/        # Grafana dashboards and datasources
-├── src/main/java/com/iqkv/docintelligence/catalogservice/
-│   ├── ping/           # Feature module (vertical slice) — reachability probes
-│   │   ├── PingDtos.java
-│   │   └── PingRestResource.java
-│   ├── infrastructure/ # Spring config, security, MyBatis, RabbitMQ setup
-│   └── shared/         # Common exceptions, utilities, value objects
+├── src/main/java/com/iqkv/docintelligence/catalogprocessingworker/
+│   ├── infrastructure/ # Spring config, MyBatis, RabbitMQ setup
+│   └── shared/         # Common utilities, value objects
 ```
 
 ## License
@@ -190,10 +172,9 @@ Please read our [Contributing Guidelines](.github/CONTRIBUTING.md) and [Code of 
 ## 🧩 Architecture
 
 - **Ollama**: LLM connectivity configured via `spring.ai.ollama.*` (`SPRING_AI_OLLAMA_BASE_URL`, `SPRING_AI_OLLAMA_CHAT_OPTIONS_MODEL`)
-- **Persistence**: MyBatis with XML mappers + PostgreSQL; Liquibase manages schema migrations
-- **Messaging**: RabbitMQ consumer for IAM tenant provisioning events (`tenant.created` / `tenant.updated`) bound to the shared `iqkv.events` exchange; `iqkv.messaging.rabbitmq.enabled` toggle — disabled in base, enabled per profile
-- **Security**: Spring Security + OAuth2 Resource Server; RS256 JWT validated via public key; `@PreAuthorize` on every endpoint
-- **Multi-tenancy**: `ROLLOUT_MODE` (`MULTI_TENANT` | `SINGLE_TENANT`) — must be identical across all platform services
+- **Persistence**: MyBatis with XML mappers + PostgreSQL
+- **Messaging**: RabbitMQ exchange, queue and dead-letter wiring bound to the shared `iqkv.events` exchange; `iqkv.messaging.rabbitmq.enabled` toggle — disabled in base, enabled per profile
+- **Web**: Spring Web is present only to serve Actuator HTTP endpoints (management port 8081)
 - **Credential convention**: DB users follow `svc_{service}_dba`, RabbitMQ users follow `svc_{service}_rmq`
 - **Observability**: Micrometer + Prometheus; structured JSON logging with Logstash encoder; health probes for Kubernetes
 - **GitHub Integration**: Issue templates, labels, Dependabot, and CI workflows

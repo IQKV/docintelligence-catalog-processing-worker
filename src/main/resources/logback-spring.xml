@@ -4,27 +4,24 @@
     <property name="LOG_LEVEL_ROOT" value="${LOG_LEVEL_ROOT:-INFO}"/>
     <property name="LOG_LEVEL_APP" value="${LOG_LEVEL_APP:-INFO}"/>
     <property name="LOG_LEVEL_SPRING" value="${LOG_LEVEL_SPRING:-WARN}"/>
-    <property name="LOG_LEVEL_SECURITY" value="${LOG_LEVEL_SECURITY:-WARN}"/>
     <property name="LOG_LEVEL_SQL" value="${LOG_LEVEL_SQL:-WARN}"/>
     <property name="LOG_LEVEL_MESSAGING" value="${LOG_LEVEL_MESSAGING:-WARN}"/>
-    <property name="SERVICE_NAME" value="${spring.application.name:-docintelligence-catalog-service}"/>
+    <property name="SERVICE_NAME" value="${spring.application.name:-docintelligence-catalog-processing-worker}"/>
     <property name="ENVIRONMENT" value="${SPRING_PROFILES_ACTIVE:-unknown}"/>
 
     <!-- Console Appender - Text Format (default) -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{correlationId:-}] [%X{traceId:-}] [%X{spanId:-}] [%X{tenantId:-}] %logger{36} - %msg%n</pattern>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{traceId:-}] [%X{spanId:-}] %logger{36} - %msg%n</pattern>
         </encoder>
     </appender>
 
     <!-- Application Loggers - controlled by environment variables -->
     <logger name="com.iqkv" level="${LOG_LEVEL_APP}"/>
-    <logger name="org.springframework.security" level="${LOG_LEVEL_SECURITY}"/>
     <logger name="org.springframework.web" level="${LOG_LEVEL_SPRING}"/>
     <logger name="org.springframework.amqp" level="${LOG_LEVEL_MESSAGING}"/>
     <logger name="org.springframework.rabbit" level="${LOG_LEVEL_MESSAGING}"/>
     <logger name="org.mybatis" level="${LOG_LEVEL_SQL}"/>
-    <logger name="liquibase" level="INFO"/>
 
     <!-- Default: Text format for local/dev/sit -->
     <root level="${LOG_LEVEL_ROOT}">

@@ -1,13 +1,8 @@
 # ===================================================================
 # Spring Boot configuration for the "local" profile.
-# Overrides base: enables Liquibase with demo data, relaxes actuator,
-# enables debug logging.
+# Overrides base: relaxes actuator exposure and enables debug logging.
 # Run infrastructure with: docker compose up postgres-catalog rabbitmq-catalog
 # ===================================================================
-
-spring:
-  liquibase:
-    contexts: demo
 
 management:
   endpoints:
@@ -19,9 +14,7 @@ logging:
   level:
     com.iqkv: DEBUG
     org.mybatis: DEBUG
-    liquibase: INFO
     org.springframework.web: INFO
-    org.springframework.security: INFO
 
 iqkv:
   messaging:

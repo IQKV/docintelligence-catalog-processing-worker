@@ -1,12 +1,8 @@
 # ===================================================================
 # Spring Boot configuration for the "uat" profile (staging).
-# Overrides base: points to in-cluster service names, enables Liquibase
-# with demo data, all secrets via env vars (no defaults).
+# Overrides base: points to in-cluster service names, all secrets via
+# env vars (no defaults).
 # ===================================================================
-
-spring:
-  liquibase:
-    contexts: demo
 
 logging:
   level:
@@ -24,6 +20,3 @@ iqkv:
     port: ${RABBITMQ_PORT}
     username: ${RABBITMQ_USERNAME}
     password: ${RABBITMQ_PASSWORD}
-  auth:
-    jwt:
-      jwks-uri: ${JWT_JWKS_URI}

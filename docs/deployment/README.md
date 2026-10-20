@@ -2,7 +2,7 @@
 
 ### Overview
 
-The Document Intelligence Catalog Service is deployed using Helm charts and automated CI/CD pipelines. The service connects to an Ollama instance for LLM connectivity, with JWT RS256 resource-server security validated against the IAM service JWKS endpoint.
+The Document Intelligence Catalog Service is deployed using Helm charts and automated CI/CD pipelines. The service connects to an Ollama instance for LLM connectivity, backed by PostgreSQL and RabbitMQ.
 
 ### Prerequisites
 
@@ -77,7 +77,7 @@ The service uses a Drone CI/CD pipeline with 10 stages:
 
 ```bash
 # WIP / Feature branches (SIT)
-helm upgrade --install --atomic --wait --timeout 5m docintelligence-catalog-service ./ \
+helm upgrade --install --atomic --wait --timeout 5m docintelligence-catalog-processing-worker ./ \
   --values ./values.yaml \
   --values ./values-sit.yaml \
   --set image.tag=${DRONE_BRANCH} \
@@ -87,7 +87,7 @@ helm upgrade --install --atomic --wait --timeout 5m docintelligence-catalog-serv
   --create-namespace
 
 # Production (tagged releases)
-helm upgrade --install --atomic --wait --timeout 5m docintelligence-catalog-service ./ \
+helm upgrade --install --atomic --wait --timeout 5m docintelligence-catalog-processing-worker ./ \
   --values ./values.yaml \
   --values ./values-prd.yaml \
   --set image.tag=${DRONE_TAG} \
@@ -106,10 +106,10 @@ helm upgrade --install --atomic --wait --timeout 5m docintelligence-catalog-serv
 ```bash
 # Clone Helm charts
 git clone <HELM_CHARTS_REPOSITORY> charts
-cd charts/IQKV/docintelligence-catalog-service
+cd charts/IQKV/docintelligence-catalog-processing-worker
 
 # Deploy to SIT
-helm upgrade --install docintelligence-catalog-service ./ \
+helm upgrade --install docintelligence-catalog-processing-worker ./ \
   --values values-sit.yaml \
   --set infraServices.postgresql.password="your-db-password" \
   --set infraServices.rabbitmq.password="your-rabbitmq-password" \
@@ -120,19 +120,17 @@ helm upgrade --install docintelligence-catalog-service ./ \
 #### Secret Configuration Examples
 
 ```bash
-drone secret add --repository IQKV/docintelligence-catalog-service --name INFRA_POSTGRESQL_PASSWORD --data "your-postgresql-password"
-drone secret add --repository IQKV/docintelligence-catalog-service --name INFRA_RABBITMQ_PASSWORD --data "your-rabbitmq-password"
+drone secret add --repository IQKV/docintelligence-catalog-processing-worker --name INFRA_POSTGRESQL_PASSWORD --data "your-postgresql-password"
+drone secret add --repository IQKV/docintelligence-catalog-processing-worker --name INFRA_RABBITMQ_PASSWORD --data "your-rabbitmq-password"
 ```
 
 #### External Services
 
 The service connects to these external infrastructure components:
 
-- **PostgreSQL**: Service data persistence (system/public schema — no tenant schemas)
-- **RabbitMQ**: Messaging and tenant provisioning consumer
+- **PostgreSQL**: Service data persistence
+- **RabbitMQ**: Messaging
 - **Ollama**: LLM inference endpoint (`http://foundation-ollama:11434` by default)
-- **IAM Service**: JWKS endpoint for JWT validation (`http://foundation-iam-service:8080/.well-known/jwks.json`)
-- **Billing Service**: Plan quota enforcement (`http://foundation-billing-service:8080`)
 
 > **Ollama note:** The default values point to `http://foundation-ollama:11434` (in-cluster). For external Ollama instances (e.g. a VDS with GPU), override `ai.ollama.baseUrl` via `--set` or the Helm values file.
 
@@ -166,10 +164,6 @@ The default model is `llama3.1:8b`. Override via `ai.ollama.model` in values or 
 | Monitoring     | Disabled | Enabled  | Enabled       |
 | Network Policy | Disabled | Disabled | Enabled       |
 
-#### Platform Rollout Mode
-
-`platform.rolloutMode` must be identical across all core services (`MULTI_TENANT` or `SINGLE_TENANT`).
-
 ### Monitoring & Health Checks
 
 #### Health Endpoints
@@ -193,28 +187,20 @@ UAT and production deployments include:
 1. **Database connection failures**
 
     ```bash
-    kubectl logs deployment/docintelligence-catalog-service -n iqkv-sit-env
+    kubectl logs deployment/docintelligence-catalog-processing-worker -n iqkv-sit-env
     ```
 
-2. **JWT validation failures**
-
-    Ensure `config.jwt.jwksUri` points to the correct IAM service JWKS endpoint:
+2. **Check configuration**
 
     ```bash
-    kubectl describe configmap docintelligence-catalog-service-config -n iqkv-sit-env
+    kubectl describe configmap docintelligence-catalog-processing-worker-config -n iqkv-sit-env
+    kubectl describe secret docintelligence-catalog-processing-worker-secrets -n iqkv-sit-env
     ```
 
-3. **Check configuration**
+3. **Test health endpoints**
 
     ```bash
-    kubectl describe configmap docintelligence-catalog-service-config -n iqkv-sit-env
-    kubectl describe secret docintelligence-catalog-service-secrets -n iqkv-sit-env
-    ```
-
-4. **Test health endpoints**
-
-    ```bash
-    kubectl port-forward deployment/docintelligence-catalog-service 8081:8081 -n iqkv-sit-env
+    kubectl port-forward deployment/docintelligence-catalog-processing-worker 8081:8081 -n iqkv-sit-env
     curl http://localhost:8081/actuator/health
     ```
 
@@ -222,21 +208,20 @@ UAT and production deployments include:
 
 ```bash
 kubectl get secrets -n iqkv-sit-env
-kubectl get secret docintelligence-catalog-service-secrets -n iqkv-sit-env -o yaml
-drone secret ls --repository IQKV/docintelligence-catalog-service
+kubectl get secret docintelligence-catalog-processing-worker-secrets -n iqkv-sit-env -o yaml
+drone secret ls --repository IQKV/docintelligence-catalog-processing-worker
 ```
 
 #### Rollback
 
 ```bash
-helm rollback docintelligence-catalog-service -n iqkv-prd-env
+helm rollback docintelligence-catalog-processing-worker -n iqkv-prd-env
 # Or uninstall completely
-helm uninstall docintelligence-catalog-service -n iqkv-prd-env
+helm uninstall docintelligence-catalog-processing-worker -n iqkv-prd-env
 ```
 
 ### Security
 
-- JWT RS256 validated via IAM JWKS endpoint — no local PEM key required in deployed environments
 - All sensitive values injected via `--set` flags from Drone secrets (never stored in chart)
 - TLS configurable via cert-manager in production ingress
 - Network policies restrict pod communication in production — includes explicit Ollama egress rule (port 11434)
