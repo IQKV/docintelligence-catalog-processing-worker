@@ -21,8 +21,10 @@ import javax.sql.DataSource;
 
 import com.iqkv.docintelligence.catalogprocessingworker.infrastructure.mybatis.UuidTypeHandler;
 import com.iqkv.foundation.tenancy.MyBatisSchemaInterceptor;
+import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.mybatis.spring.SqlSessionFactoryBean;
+import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
@@ -32,6 +34,12 @@ import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
  * tenant schema interceptor.
  */
 @Configuration
+@MapperScan(
+    basePackages = {
+        "com.iqkv.docintelligence.catalogprocessingworker.mastervenue"
+    },
+    annotationClass = Mapper.class
+)
 public class MyBatisConfig {
 
   @Bean
