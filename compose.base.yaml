@@ -64,6 +64,49 @@ services:
       start_period: 60s
     restart: unless-stopped
 
+  # MinIO S3-compatible object storage - Local Development
+  # Shares the catalog-assets bucket with docintelligence-catalog-service.
+  minio:
+    image: pgsty/minio:latest
+    container_name: foundation-catalog-minio-dev
+    command: server /data --console-address :9001
+    environment:
+      MINIO_ROOT_USER: iqkv
+      MINIO_ROOT_PASSWORD: iqkv_password
+      # Server-level CORS — allows presigned URL uploads from any local origin
+      MINIO_API_CORS_ALLOW_ORIGIN: "*"
+    ports:
+      - "9002:9000" # S3 API (host 9000/9001 are taken by SonarQube in this stack)
+      - "9003:9001" # Console UI
+    volumes:
+      - minio_catalog_data:/data
+    networks:
+      - catalog-service-network
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  # MinIO bucket init — creates the catalog-assets bucket (private, served via presigned URLs)
+  minio-init:
+    image: pgsty/mc:latest
+    container_name: foundation-catalog-minio-init-dev
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks:
+      - catalog-service-network
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set local http://minio:9000 iqkv iqkv_password &&
+        mc mb --ignore-existing local/catalog-assets &&
+        echo 'Buckets ready.'
+      "
+    restart: on-failure
+
   # DbGate - Database Administration Tool
   dbgate:
     image: dbgate/dbgate:5.3.3
@@ -82,6 +125,8 @@ services:
       postgres-catalog:
         condition: service_healthy
       rabbitmq-catalog:
+        condition: service_healthy
+      minio:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
@@ -117,6 +162,15 @@ services:
       RABBITMQ_USERNAME: svc_catalog_rmq
       RABBITMQ_PASSWORD: svc_catalog_rmq
 
+      # Object Storage Configuration (MinIO) — same bucket as the catalog service
+      OBJECTSTORAGE_ENDPOINT: http://minio:9000
+      OBJECTSTORAGE_PUBLIC_ENDPOINT: http://localhost:9002
+      OBJECTSTORAGE_ACCESS_KEY: iqkv
+      OBJECTSTORAGE_SECRET_KEY: iqkv_password
+      OBJECTSTORAGE_BUCKET_NAME: catalog-assets
+      OBJECTSTORAGE_REGION: us-east-1
+      OBJECTSTORAGE_SSL: "false"
+
       # Observability
       OTEL_SERVICE_NAME: docintelligence-catalog-processing-worker
       OTEL_RESOURCE_ATTRIBUTES: service.name=docintelligence-catalog-processing-worker,service.version=1.0.0,deployment.environment=dev
@@ -140,6 +194,8 @@ services:
       postgres-catalog:
         condition: service_healthy
       rabbitmq-catalog:
+        condition: service_healthy
+      minio:
         condition: service_healthy
     networks:
       - catalog-service-network
@@ -246,6 +302,9 @@ volumes:
     driver: local
   rabbitmq_catalog_data:
     name: docintelligence_catalog_rabbitmq_data_dev
+    driver: local
+  minio_catalog_data:
+    name: docintelligence_catalog_minio_data_dev
     driver: local
   dbgate_catalog_data:
     name: docintelligence_catalog_dbgate_data_dev

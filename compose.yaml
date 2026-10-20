@@ -11,6 +11,18 @@ services:
       file: compose.base.yaml
       service: rabbitmq-catalog
 
+  # MinIO S3-compatible object storage
+  minio:
+    extends:
+      file: compose.base.yaml
+      service: minio
+
+  # MinIO bucket init
+  minio-init:
+    extends:
+      file: compose.base.yaml
+      service: minio-init
+
   # DbGate - Database Administration Tool
   dbgate:
     extends:
@@ -51,6 +63,8 @@ volumes:
     name: docintelligence_catalog_postgres_data_dev
   rabbitmq_catalog_data:
     name: docintelligence_catalog_rabbitmq_data_dev
+  minio_catalog_data:
+    name: docintelligence_catalog_minio_data_dev
   dbgate_catalog_data:
     name: docintelligence_catalog_dbgate_data_dev
   catalog_logs:
