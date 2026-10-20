@@ -265,13 +265,12 @@ Before making recommendations, agents should understand the project's technology
 - **MyBatis** with XML mappers — there is no Spring Data JPA / Hibernate in this project
 - `mybatis.configuration.map-underscore-to-camel-case=true` is enabled globally
 - Mapper interfaces annotated with `@Mapper`; XML mapper files in `src/main/resources/mappers/<context>/`
-- Liquibase for schema migrations (`db/changelog/system/db.changelog-system.xml`)
-- **ShedLock** (`shedlock-spring` + `shedlock-provider-jdbc-template`) for distributed scheduled job locking
+- **Shared schema** — this service owns no migrations. It reads and writes the PostgreSQL schema and tables maintained by `docintelligence-catalog-service`, which runs the Liquibase changelogs. There is no `db/changelog/` here and Liquibase is not on the classpath.
 
 **Security**
 
-- Spring Security (if configured)
-- JWT authentication (if configured)
+- No inbound HTTP surface — Spring Web is present only to serve Actuator endpoints (management port 8081)
+- No Spring Security and no JWT in this service: work arrives over the broker, not through the network edge
 
 **Testing**
 
@@ -836,7 +835,7 @@ code_style:
 architecture:
     tool: "ArchUnit"
     rules:
-        - "Services only accessed by controllers"
+        - "Services only accessed by adapters"
         - "No cyclic dependencies"
         - "Proper package structure"
 ```
@@ -877,16 +876,16 @@ A task is evaluated as done only when all of the following hold:
 
 ### Required gates by change type
 
-| Change type                                                     | Required gates                                                                             |
-| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| Any change                                                      | `./mvnw -q compile`, then the narrowest targeted `./mvnw test -Dtest=ClassName`            |
-| Domain / application / service logic                            | Unit tests (JUnit 5 + Mockito, AAA); a new non-trivial branch, loop or parser needs a test |
-| MyBatis mapper (interface or XML)                               | Service-level test covering the mapper path, then full `./mvnw verify`                     |
-| REST controller, Spring Security, tenant guard                  | Security test, then full `./mvnw verify`                                                   |
-| Liquibase changelog                                             | Full `./mvnw verify` — the Spring context and schema must load cleanly                     |
-| Package/layer move, new bounded context                         | ArchUnit `TechnicalStructureTest`, then full `./mvnw verify`                               |
-| Dependency or build config                                      | Full `./mvnw verify`                                                                       |
-| Docs or `AGENTS.md` only                                        | No code gate — state that none applies                                                     |
+| Change type                                                                 | Required gates                                                                             |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Any change                                                                  | `./mvnw -q compile`, then the narrowest targeted `./mvnw test -Dtest=ClassName`            |
+| Domain / application / service logic                                        | Unit tests (JUnit 5 + Mockito, AAA); a new non-trivial branch, loop or parser needs a test |
+| MyBatis mapper (interface or XML)                                           | Service-level test covering the mapper path, then full `./mvnw verify`                     |
+| Messaging consumer, queue or binding declaration                            | Consumer test, then full `./mvnw verify`                                                   |
+| Shared schema change (migration lives in `docintelligence-catalog-service`) | Full `./mvnw verify` once the catalog-side changelog has been applied                      |
+| Package/layer move, new bounded context                                     | ArchUnit `TechnicalStructureTest`, then full `./mvnw verify`                               |
+| Dependency or build config                                                  | Full `./mvnw verify`                                                                       |
+| Docs or `AGENTS.md` only                                                    | No code gate — state that none applies                                                     |
 
 ### Ordering
 

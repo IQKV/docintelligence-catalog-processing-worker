@@ -1,6 +1,20 @@
 # Document Intelligence Catalog Processing Worker 🚀
 
-GitHub template for the iQ Key Value platform. Extends the standard `foundation-microservice-project-layout` with a service backed by PostgreSQL, RabbitMQ, and Ollama.
+GitHub template for the iQ Key Value platform. Extends the standard `foundation-microservice-project-layout` with an event-driven companion worker backed by PostgreSQL, RabbitMQ, and Ollama.
+
+## Service Role
+
+This is the asynchronous half of the Document Intelligence catalog pair — the **companion worker** (asynchronous sibling service) to `docintelligence-catalog-service`, not a sidecar. It exposes no inbound HTTP API — every trigger arrives as a message.
+
+1. **Consume** — `docintelligence-catalog-service` publishes extraction work onto the catalog queue; this worker subscribes to it.
+2. **Process** — assets are read from the shared folder / S3 and processed, with Spring AI against Ollama backing the model-dependent steps.
+3. **Feed back** — results are written to the shared catalog tables and a feedback event is published upstream, so the catalog service can advance the venue's profile.
+
+### Shared Infrastructure
+
+The worker deliberately shares the PostgreSQL schema and tables and the RabbitMQ broker with `docintelligence-catalog-service`. This is a conscious exception to the platform's self-contained-service rule, traded for simplicity and per-message performance inside a single product boundary. The catalog service owns the schema migrations; this worker only reads and writes the shared tables.
+
+What the two share is data, not a host: they run as separate deployables with independent lifecycles and scale on different axes (API traffic for the catalog, queue depth for the worker). That is what makes this a **companion service** rather than a sidecar.
 
 ## About
 

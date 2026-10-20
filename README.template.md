@@ -3,7 +3,13 @@
 > **Template skeleton.** Replace this content when you create your repository from the template.
 > Repository development details live in [`README.md`](./README.md).
 
-A microservice on the iQ Key Value platform, backed by PostgreSQL, RabbitMQ, and Ollama.
+An event-driven companion worker on the iQ Key Value platform, backed by PostgreSQL, RabbitMQ, and Ollama.
+
+## Service Role
+
+The service is the **companion worker** (asynchronous sibling service) to the service that owns the control-plane API — not a sidecar. It exposes no inbound HTTP API — every trigger arrives as a message. It consumes work from a queue, processes assets from a shared folder / S3, and publishes feedback events upstream so the producer can make progress. Reads and writes go through MyBatis.
+
+It is expected to share its PostgreSQL schema and RabbitMQ broker with the service that hands it work, rather than owning them outright — a deliberate exception to the platform's self-contained-service rule, traded for simplicity and per-message performance. What the two share is data, not a host: they run as separate deployables, with independent lifecycles and their own scaling axes.
 
 ## About
 
