@@ -1,11 +1,11 @@
 services:
-  # PostgreSQL Database for Catalog Service
+  # PostgreSQL Database for Catalog Processing Worker
   postgres-catalog:
     extends:
       file: compose.base.yaml
       service: postgres-catalog
 
-  # RabbitMQ for Catalog Service
+  # RabbitMQ for Catalog Processing Worker
   rabbitmq-catalog:
     extends:
       file: compose.base.yaml

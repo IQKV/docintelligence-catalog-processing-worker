@@ -2,7 +2,7 @@
 
 ### Overview
 
-The Document Intelligence Catalog Service is deployed using Helm charts and automated CI/CD pipelines. The service connects to an Ollama instance for LLM connectivity, backed by PostgreSQL and RabbitMQ.
+The Document Intelligence Catalog Processing Worker is deployed using Helm charts and automated CI/CD pipelines. The service connects to an Ollama instance for LLM connectivity, backed by PostgreSQL and RabbitMQ.
 
 ### Prerequisites
 
@@ -58,7 +58,7 @@ The service uses a Drone CI/CD pipeline with 10 stages:
 | `INFRA_POSTGRESQL_PASSWORD`       | PostgreSQL database password      | Application configuration                  |
 | `INFRA_RABBITMQ_PASSWORD`         | RabbitMQ message broker password  | Application configuration                  |
 
-> No `SMTP_*` secrets required — the Catalog Service does not send email.
+> No `SMTP_*` secrets required — the Catalog Processing Worker does not send email.
 
 </details>
 

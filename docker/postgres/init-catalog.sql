@@ -1,4 +1,4 @@
--- Initialize Catalog Service Database
+-- Initialize Catalog Processing Worker Database
 -- This script runs when the PostgreSQL container starts for the first time
 
 -- Create additional schemas
@@ -16,4 +16,4 @@ GRANT ALL PRIVILEGES ON DATABASE catalogservice TO svc_catalog_dba;
 GRANT ALL PRIVILEGES ON SCHEMA public TO svc_catalog_dba;
 GRANT ALL PRIVILEGES ON SCHEMA catalogservice TO svc_catalog_dba;
 
-SELECT 'Catalog Service Database initialized successfully' AS status;
+SELECT 'Catalog Processing Worker Database initialized successfully' AS status;

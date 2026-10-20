@@ -1,5 +1,5 @@
 services:
-  # PostgreSQL Database for Catalog Service - Local Development
+  # PostgreSQL Database for Catalog Processing Worker - Local Development
   postgres-catalog:
     image: postgres:17-alpine
     container_name: foundation-catalog-postgres-dev
@@ -40,7 +40,7 @@ services:
       -c min_wal_size=1GB
       -c max_wal_size=4GB
 
-  # RabbitMQ for Catalog Service - Local Development
+  # RabbitMQ for Catalog Processing Worker - Local Development
   rabbitmq-catalog:
     image: rabbitmq:3.13-management-alpine
     container_name: foundation-catalog-rabbitmq-dev
@@ -91,7 +91,7 @@ services:
       start_period: 30s
     restart: unless-stopped
 
-  # Catalog Service - Local Development
+  # Catalog Processing Worker - Local Development
   catalog-service:
     build:
       context: .

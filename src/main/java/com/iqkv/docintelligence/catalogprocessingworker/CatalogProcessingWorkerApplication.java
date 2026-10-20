@@ -24,7 +24,7 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
- * Entry point for the Catalog Service.
+ * Entry point for the Catalog Processing Worker.
  *
  * <p>{@link ConfigurationPropertiesScan} auto-discovers all {@code @ConfigurationProperties}
  * records in this package tree — no manual {@code @EnableConfigurationProperties} needed.

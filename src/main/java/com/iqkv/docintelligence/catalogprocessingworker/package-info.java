@@ -15,7 +15,7 @@
  */
 
 /**
- * Application root package for the Catalog Service.
+ * Application root package for the Catalog Processing Worker.
  */
 
 package com.iqkv.docintelligence.catalogprocessingworker;

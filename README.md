@@ -1,4 +1,4 @@
-# Document Intelligence Catalog Service 🚀
+# Document Intelligence Catalog Processing Worker 🚀
 
 GitHub template for the iQ Key Value platform. Extends the standard `foundation-microservice-project-layout` with a service backed by PostgreSQL, RabbitMQ, and Ollama.
 

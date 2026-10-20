@@ -1,2 +1,2 @@
-{"_id":"postgres-catalog","engine":"postgres@dbgate-plugin-postgres","server":"postgres-catalog","port":5432,"user":"svc_catalog_dba","password":"svc_catalog_dba","database":"catalogservice","displayName":"PostgreSQL - Catalog Service"}
-{"_id":"rabbitmq-catalog","engine":"rabbitmq@dbgate-plugin-rabbitmq","server":"rabbitmq-catalog","port":15672,"user":"svc_catalog_rmq","password":"svc_catalog_rmq","displayName":"RabbitMQ - Catalog Service"}
+{"_id":"postgres-catalog","engine":"postgres@dbgate-plugin-postgres","server":"postgres-catalog","port":5432,"user":"svc_catalog_dba","password":"svc_catalog_dba","database":"catalogservice","displayName":"PostgreSQL - Catalog Processing Worker"}
+{"_id":"rabbitmq-catalog","engine":"rabbitmq@dbgate-plugin-rabbitmq","server":"rabbitmq-catalog","port":15672,"user":"svc_catalog_rmq","password":"svc_catalog_rmq","displayName":"RabbitMQ - Catalog Processing Worker"}

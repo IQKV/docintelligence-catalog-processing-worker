@@ -6,7 +6,7 @@ This directory contains the DbGate database administration tool configuration fo
 
 The `connections.jsonl` file contains pre-configured connections template for microservice infrastructure:
 
-### 1. PostgreSQL - Catalog Service
+### 1. PostgreSQL - Catalog Processing Worker
 
 - **ID**: `postgres-catalog`
 - **Server**: `postgres-catalog:5432`
@@ -14,7 +14,7 @@ The `connections.jsonl` file contains pre-configured connections template for mi
 - **User**: `svc_catalog_dba`
 - **Engine**: `postgres@dbgate-plugin-postgres`
 
-### 2. RabbitMQ - Catalog Service
+### 2. RabbitMQ - Catalog Processing Worker
 
 - **ID**: `rabbitmq-catalog`
 - **Server**: `rabbitmq-catalog:15672`

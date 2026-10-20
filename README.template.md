@@ -1,4 +1,4 @@
-# Document Intelligence Catalog Service 📇
+# Document Intelligence Catalog Processing Worker 📇
 
 > **Template skeleton.** Replace this content when you create your repository from the template.
 > Repository development details live in [`README.md`](./README.md).
