@@ -14,7 +14,7 @@ This service provides:
 
 - **Ollama connectivity** — LLM client pre-wired to a local Ollama instance via `spring.ai.ollama.*` (base URL and model configurable per environment)
 - **Persistence** — data stored in PostgreSQL via MyBatis
-- **Messaging** — RabbitMQ exchange, queue and dead-letter wiring bound to the shared `iqkv.events` exchange, gated by `iqkv.messaging.rabbitmq.enabled`
+- **Messaging** — RabbitMQ connection, Jackson JSON message converter and listener retry policy, gated by `iqkv.messaging.rabbitmq.enabled`
 
 ## Quick Links
 
@@ -150,7 +150,7 @@ Please read our [Contributing Guidelines](.github/CONTRIBUTING.md) and [Code of 
 
 - **Ollama**: LLM connectivity configured via `spring.ai.ollama.*` (`SPRING_AI_OLLAMA_BASE_URL`, `SPRING_AI_OLLAMA_CHAT_OPTIONS_MODEL`)
 - **Persistence**: MyBatis with XML mappers + PostgreSQL
-- **Messaging**: RabbitMQ exchange, queue and dead-letter wiring bound to the shared `iqkv.events` exchange; `iqkv.messaging.rabbitmq.enabled` toggle — disabled in base profile, enabled per environment
+- **Messaging**: RabbitMQ connection, Jackson JSON message converter and listener retry policy; `iqkv.messaging.rabbitmq.enabled` toggle — disabled in base profile, enabled per environment
 - **Web**: Spring Web is present only to serve Actuator HTTP endpoints (management port 8081)
 - **Observability**: Micrometer + Prometheus; structured JSON logging with Logstash encoder; health probes for Kubernetes readiness/liveness
 - **Quality Tools**: Checkstyle, JaCoCo (60% gate), ArchUnit, commit convention enforcement

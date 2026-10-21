@@ -22,8 +22,8 @@ import org.springframework.validation.annotation.Validated;
 /**
  * Binds {@code iqkv.messaging.rabbitmq.*} from {@code application.yml}.
  *
- * <p>{@code enabled} drives {@code @ConditionalOnProperty} in {@link RabbitMQConfig}
- * — set to {@code false} in the base config and flipped to {@code true} per profile
+ * <p>{@code enabled} drives {@code @ConditionalOnProperty} on the messaging configuration
+ * classes — set to {@code false} in the base config and flipped to {@code true} per profile
  * (local, sit, uat, prd).
  */
 @Validated

@@ -18,7 +18,7 @@ spring:
       simple:
         # A rejected delivery must not be requeued immediately, otherwise a poison
         # message loops until its 24h TTL expires. After the bounded retries
-        # below the message is dead-lettered to SERVICE_DLQ for inspection.
+        # below the message is dead-lettered for inspection.
         default-requeue-rejected: false
         retry:
           enabled: true

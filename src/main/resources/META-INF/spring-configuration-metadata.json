@@ -16,7 +16,7 @@
             "name": "iqkv.messaging.rabbitmq",
             "type": "com.iqkv.docintelligence.catalogprocessingworker.infrastructure.config.MessagingConfigurationProperties",
             "sourceType": "com.iqkv.docintelligence.catalogprocessingworker.infrastructure.config.MessagingConfigurationProperties",
-            "description": "RabbitMQ messaging toggles. 'enabled' drives @ConditionalOnProperty in RabbitMQConfig."
+            "description": "RabbitMQ messaging toggles. 'enabled' drives @ConditionalOnProperty on the messaging configuration classes."
         },
         {
             "name": "iqkv.platform",
@@ -103,7 +103,7 @@
         {
             "name": "iqkv.messaging.rabbitmq.enabled",
             "type": "java.lang.Boolean",
-            "description": "Enables RabbitMQ messaging. When false, RabbitMQConfig is skipped. Defaults to false for local safety; the Helm chart configmap sets MESSAGING_ENABLED per environment (sit/uat/prd).",
+            "description": "Enables RabbitMQ messaging. When false, the messaging configuration classes are skipped. Defaults to false for local safety; the Helm chart configmap sets MESSAGING_ENABLED per environment (sit/uat/prd).",
             "defaultValue": false
         },
         {

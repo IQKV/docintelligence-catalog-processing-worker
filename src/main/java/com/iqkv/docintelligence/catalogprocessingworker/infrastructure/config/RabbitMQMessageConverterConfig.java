@@ -33,9 +33,8 @@ import tools.jackson.databind.json.JsonMapper;
  * <p>Reuses the shared {@link JsonMapper} from {@link JacksonJsonMapperConfig} to ensure
  * consistent JSON handling across REST responses and messaging payloads.
  *
- * <p>Activated only when {@code iqkv.messaging.rabbitmq.enabled=true} — mirrors
- * the guard on {@link RabbitMQConfig} so the converter is never registered when
- * there is no RabbitMQ connection.
+ * <p>Activated only when {@code iqkv.messaging.rabbitmq.enabled=true} so the converter
+ * is never registered when there is no RabbitMQ connection.
  */
 @Configuration
 @ConditionalOnProperty(name = "iqkv.messaging.rabbitmq.enabled", havingValue = "true")
