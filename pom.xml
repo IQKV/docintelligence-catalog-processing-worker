@@ -5,7 +5,7 @@
     <parent>
         <groupId>com.iqkv</groupId>
         <artifactId>boot-parent-pom</artifactId>
-        <version>0.24.34</version>
+        <version>0.24.35</version>
     </parent>
     <groupId>com.iqkv</groupId>
     <artifactId>docintelligence-catalog-processing-worker</artifactId>
@@ -88,6 +88,12 @@
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-starter-model-ollama</artifactId>
+        </dependency>
+
+        <!-- Extraction: Apache Tika via Spring AI document reader (Phase 1 parser) -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-tika-document-reader</artifactId>
         </dependency>
 
         <!-- Testing -->
