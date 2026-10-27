@@ -25,6 +25,12 @@ RUN mvn clean package -DskipTests -B && \
 # Production runtime stage with security hardening
 FROM eclipse-temurin:25-jre-alpine
 
+# Injected by CI as --build-arg (commit SHA / branch-or-tag).
+ARG VCS_REFERENCE
+ARG BUILD_VERSION_REFERENCE
+ENV APPLICATION_VCS_REFERENCE=${VCS_REFERENCE}
+ENV APPLICATION_BUILD_VERSION=${BUILD_VERSION_REFERENCE}
+
 # Security: Install only essential packages
 RUN apk add --no-cache curl tzdata && \
     rm -rf /var/cache/apk/* && \
