@@ -6,70 +6,51 @@ This document provides comprehensive guidelines for repository management, devel
 
 ## 🏛️ Repository Structure & Organization
 
-### Tactical DDD Project Layout
+### Feature-Sliced Project Layout
+
+This worker is organized by **technical packages**, not by DDD layers. It has no HTTP surface, no
+`ping` slice and no feature slices of its own: work arrives over RabbitMQ, and the small amount of
+application code lives beside the cross-cutting `infrastructure` and `shared` packages. There are
+deliberately no `domain`/`application`/`adapter` packages.
 
 ```
-project-root/
-├── .github/                          # GitHub workflows and automation
-│   └── workflows/                    # CI/CD pipeline definitions
+docintelligence-catalog-processing-worker/
+├── .github/workflows/                # GitHub Actions pipelines
+├── docker/                           # Local stack config (postgres, prometheus, grafana)
+├── docs/                             # Architecture, deployment and API notes
 ├── src/
 │   ├── main/
-│   │   ├── java/                     # Java source code
-│   │   │   └── com/example/project/
-│   │   │       ├── shared/           # Shared kernel (cross-cutting concerns)
-│   │   │       │   ├── domain/       # Shared domain primitives
-│   │   │       │   ├── exception/    # Common exceptions
-│   │   │       │   └── util/         # Utility classes
-│   │   │       ├── infrastructure/   # Infrastructure layer
-│   │   │       │   ├── config/       # Spring configuration
-│   │   │       │   ├── security/     # Security implementation
-│   │   │       │   ├── persistence/  # Repositories, adapters
-│   │   │       │   └── messaging/    # Event publishers, message brokers
-│   │   │       ├── [bounded-context-1]/  # Example: user
-│   │   │       │   ├── domain/       # Domain layer (core business logic)
-│   │   │       │   │   ├── model/    # Aggregates, entities, value objects
-│   │   │       │   │   ├── service/  # Domain services
-│   │   │       │   │   └── event/    # Domain events
-│   │   │       │   ├── application/  # Application layer
-│   │   │       │   │   ├── service/  # Application services (use cases)
-│   │   │       │   │   ├── dto/      # Data transfer objects
-│   │   │       │   │   └── port/     # Ports (interfaces for adapters)
-│   │   │       │   └── adapter/      # Adapters (interface layer)
-│   │   │       │       ├── in/       # Inbound adapters
-│   │   │       │       │   └── rest/ # REST controllers
-│   │   │       │       └── out/      # Outbound adapters
-│   │   │       │           └── persistence/ # Repository implementations
-│   │   │       ├── [bounded-context-2]/  # Example: order
-│   │   │       │   ├── domain/
-│   │   │       │   ├── application/
-│   │   │       │   └── adapter/
-│   │   │       └── Application.java  # Spring Boot main class
+│   │   ├── java/com/iqkv/docintelligence/catalogprocessingworker/
+│   │   │   ├── infrastructure/       # Cross-cutting technical concerns, no business logic
+│   │   │   │   └── config/           # RabbitMQ, object storage, MyBatis and Jackson wiring
+│   │   │   ├── shared/               # Cross-package kernel
+│   │   │   │   └── util/             # Shared utilities
+│   │   │   └── CatalogProcessingWorkerApplication.java  # Spring Boot main class
 │   │   └── resources/
-│   │       ├── application.yml       # Base configuration
-│   │       ├── application-local.yml # Local development profile
-│   │       └── db/changelog/         # Database migrations (if using Liquibase)
+│   │       ├── application.yml                      # Base configuration
+│   │       ├── application-{local,sit,uat,prd}.yml  # Per-environment profiles
+│   │       └── logback-spring.xml
 │   └── test/
-│       └── java/                     # Unit, integration, and architecture tests
-│           └── com/example/project/
-│               ├── [bounded-context]/
-│               │   ├── domain/       # Domain model tests
-│               │   ├── application/  # Application service tests
-│               │   └── adapter/      # Adapter tests
-│               └── architecture/     # ArchUnit tests
+│       └── java/com/iqkv/docintelligence/catalogprocessingworker/
+│           ├── IntegrationTest.java
+│           ├── TechnicalStructureTest.java          # ArchUnit
+│           └── CatalogProcessingWorkerApplicationTests.java
 ├── .gitignore
 ├── pom.xml                           # Maven build configuration
 ├── README.md
 └── AGENTS.md                         # This file
 ```
 
-**Key DDD Concepts:**
+**Key structural concepts:**
 
-- **Bounded Context**: Logical boundary for a specific domain model (e.g., user, order, payment)
-- **Domain Layer**: Core business logic, entities, value objects, aggregates, domain services
-- **Application Layer**: Use cases, orchestration, DTOs, ports (interfaces)
-- **Adapter Layer**: Implementation of ports (REST controllers, repository implementations)
-- **Infrastructure**: Technical concerns (config, security, persistence framework)
-- **Shared Kernel**: Common code shared across bounded contexts
+- **No feature slices yet**: this worker exposes no REST surface; when message-processing logic
+  grows, put it in a new top-level vertical-slice package rather than inventing DDD layers.
+- **Infrastructure**: Cross-cutting technical concerns (config, messaging, persistence) with no
+  business logic.
+- **Shared kernel**: Utilities reused across packages.
+- **ArchUnit**: `TechnicalStructureTest` runs `onionArchitecture().withOptionalLayers(true)`. With no
+  `domain`/`application`/`adapter` packages present the rule is intentionally permissive — the real
+  structural contract is the package layout above.
 
 ## Execution Discipline
 
@@ -134,14 +115,14 @@ Format: `type(scope): subject`
 
 - Subject: imperative, lowercase, no trailing period, ≤ 72 chars
 - Types: `feat`, `fix`, `improvement`, `refactor`, `docs`, `test`, `chore`, `ci`, `perf`, `revert`
-- Scope: affected bounded context or layer — replace `catalog` with your actual service name
+- Scope: affected technical package (e.g. `messaging`, `config`, `deps`)
 - For `fix`: describe the symptom and trigger, not the code change
     - ✅ `fix(security): unauthenticated requests bypass tenant guard in single-tenant mode`
     - ❌ `fix(security): add missing auth check`
 
 Examples:
 
-- `feat(domain): add soft-delete support to aggregate root`
+- `feat(messaging): add dead-letter routing for unprocessable catalog events`
 - `fix(messaging): consumer silently drops events with unknown tenant key`
 - `refactor(infrastructure): extract CORS config into dedicated properties class`
 - `chore(deps): update spring-boot to 3.5.0`
@@ -879,11 +860,11 @@ A task is evaluated as done only when all of the following hold:
 | Change type                                                                 | Required gates                                                                             |
 | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | Any change                                                                  | `./mvnw -q compile`, then the narrowest targeted `./mvnw test -Dtest=ClassName`            |
-| Domain / application / service logic                                        | Unit tests (JUnit 5 + Mockito, AAA); a new non-trivial branch, loop or parser needs a test |
+| Service / processing logic                                                  | Unit tests (JUnit 5 + Mockito, AAA); a new non-trivial branch, loop or parser needs a test |
 | MyBatis mapper (interface or XML)                                           | Service-level test covering the mapper path, then full `./mvnw verify`                     |
 | Messaging consumer, queue or binding declaration                            | Consumer test, then full `./mvnw verify`                                                   |
 | Shared schema change (migration lives in `docintelligence-catalog-service`) | Full `./mvnw verify` once the catalog-side changelog has been applied                      |
-| Package/layer move, new bounded context                                     | ArchUnit `TechnicalStructureTest`, then full `./mvnw verify`                               |
+| Package move or new feature slice                                           | ArchUnit `TechnicalStructureTest`, then full `./mvnw verify`                               |
 | Dependency or build config                                                  | Full `./mvnw verify`                                                                       |
 | Docs or `AGENTS.md` only                                                    | No code gate — state that none applies                                                     |
 
