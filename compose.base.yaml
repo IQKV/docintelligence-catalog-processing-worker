@@ -1,7 +1,8 @@
 services:
   # PostgreSQL Database for Catalog Processing Worker - Local Development
+  # pgvector/pgvector image required — shares the catalog-service schema which has vector columns.
   postgres-catalog:
-    image: postgres:17-alpine
+    image: pgvector/pgvector:pg17-bookworm
     container_name: foundation-catalog-postgres-dev
     environment:
       POSTGRES_DB: catalogservice
@@ -187,6 +188,7 @@ services:
       # Ollama — local LLM inference
       SPRING_AI_OLLAMA_BASE_URL: "http://ollama:11434"
       SPRING_AI_OLLAMA_CHAT_OPTIONS_MODEL: "llama3.2"
+      SPRING_AI_OLLAMA_EMBEDDING_MODEL: "nomic-embed-text"
     ports:
       - "8080:8080" # Application port
       - "8081:8081" # Actuator / management
@@ -223,19 +225,24 @@ services:
     image: ollama/ollama:latest
     container_name: foundation-catalog-ollama-dev
     environment:
-      # Allow requests from the service container and the local browser
       OLLAMA_ORIGINS: "http://localhost:8080,http://catalog-service:8080"
-      # Keep models loaded indefinitely (no idle unload)
       OLLAMA_KEEP_ALIVE: -1
     ports:
-      - "11434:11434" # Ollama REST API
+      - "11434:11434"
     volumes:
       - ollama_catalog_data:/root/.ollama
     networks:
       - catalog-service-network
     restart: unless-stopped
-    # Pull a model after first start:
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    # Pull models after first start:
     #   docker exec foundation-catalog-ollama-dev ollama pull llama3.2
+    #   docker exec foundation-catalog-ollama-dev ollama pull nomic-embed-text
 
   # SonarQube for code quality analysis
   sonar:

@@ -31,6 +31,9 @@ spring:
       base-url: ${SPRING_AI_OLLAMA_BASE_URL:http://localhost:11434}
       chat:
         model: ${SPRING_AI_OLLAMA_CHAT_OPTIONS_MODEL:llama3.2}
+      embedding:
+        options:
+          model: ${SPRING_AI_OLLAMA_EMBEDDING_MODEL:nomic-embed-text}
 
 mybatis:
   mapper-locations: classpath*:mappers/**/*.xml
