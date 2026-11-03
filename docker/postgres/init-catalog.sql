@@ -15,6 +15,7 @@ ALTER DATABASE catalogservice SET search_path TO t_platform, public, catalogserv
 -- Create extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pg_stat_statements";
+CREATE EXTENSION IF NOT EXISTS "vector";
 
 -- Grant permissions
 GRANT ALL PRIVILEGES ON DATABASE catalogservice TO svc_catalog_dba;
