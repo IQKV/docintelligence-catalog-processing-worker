@@ -19,6 +19,7 @@ package com.iqkv.docintelligence.catalogprocessingworker;
 import java.util.List;
 import java.util.TimeZone;
 
+import net.javacrumbs.shedlock.spring.annotation.EnableSchedulerLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
@@ -36,6 +37,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @SpringBootApplication
 @ConfigurationPropertiesScan
 @EnableScheduling
+@EnableSchedulerLock(defaultLockAtMostFor = "PT55M")
 public class CatalogProcessingWorkerApplication {
 
   private static final Logger log = LoggerFactory.getLogger(CatalogProcessingWorkerApplication.class);

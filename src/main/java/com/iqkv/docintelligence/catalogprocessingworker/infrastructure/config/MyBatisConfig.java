@@ -19,6 +19,7 @@ package com.iqkv.docintelligence.catalogprocessingworker.infrastructure.config;
 import java.util.UUID;
 import javax.sql.DataSource;
 
+import com.iqkv.foundation.mybatis.util.PgVectorTypeHandler;
 import com.iqkv.foundation.mybatis.util.UuidTypeHandler;
 import com.iqkv.foundation.tenancy.MyBatisSchemaInterceptor;
 import org.apache.ibatis.annotations.Mapper;
@@ -58,6 +59,7 @@ public class MyBatisConfig {
     // is active, and leaves the default schema untouched otherwise.
     config.addInterceptor(new MyBatisSchemaInterceptor());
     config.getTypeHandlerRegistry().register(UUID.class, UuidTypeHandler.class);
+    config.getTypeHandlerRegistry().register(float[].class, PgVectorTypeHandler.class);
     factory.setConfiguration(config);
 
     return factory.getObject();

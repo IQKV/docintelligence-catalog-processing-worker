@@ -5,7 +5,7 @@
     <parent>
         <groupId>com.iqkv</groupId>
         <artifactId>boot-parent-pom</artifactId>
-        <version>0.24.48</version>
+        <version>0.24.51</version>
     </parent>
     <groupId>com.iqkv</groupId>
     <artifactId>docintelligence-catalog-processing-worker</artifactId>
@@ -104,6 +104,16 @@
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-tika-document-reader</artifactId>
+        </dependency>
+
+        <!-- Scheduling: ShedLock (reuses the public.shedlock table created by docintelligence-catalog-service) -->
+        <dependency>
+            <groupId>net.javacrumbs.shedlock</groupId>
+            <artifactId>shedlock-spring</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>net.javacrumbs.shedlock</groupId>
+            <artifactId>shedlock-provider-jdbc-template</artifactId>
         </dependency>
 
         <!-- Testing -->
