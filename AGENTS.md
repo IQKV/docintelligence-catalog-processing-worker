@@ -8,9 +8,10 @@ This document provides comprehensive guidelines for repository management, devel
 
 ### Feature-Sliced Project Layout
 
-This worker is organized by **technical packages**, not by DDD layers. It has no HTTP surface, no
-`ping` slice and no feature slices of its own: work arrives over RabbitMQ, and the small amount of
-application code lives beside the cross-cutting `infrastructure` and `shared` packages. There are
+This worker is organized by **technical packages**, not by DDD layers. It has no HTTP surface and no
+`ping` slice; the `venue` slice owns the asynchronous venue-embedding work, and the small amount of
+application code lives beside the cross-cutting `infrastructure` and `shared` packages. Work is driven
+by a scheduled sweep, and the RabbitMQ wiring is in place but registers no consumer yet. There are
 deliberately no `domain`/`application`/`adapter` packages.
 
 ```
@@ -21,8 +22,11 @@ docintelligence-catalog-processing-worker/
 ├── src/
 │   ├── main/
 │   │   ├── java/com/iqkv/docintelligence/catalogprocessingworker/
+│   │   │   ├── venue/                # Vertical slice: venue embedding backfill
+│   │   │   │   ├── VenueEmbeddingBackfillService.java   # @Scheduled + @SchedulerLock sweep
+│   │   │   │   └── VenueEmbeddingService.java           # Ollama embed + vector write
 │   │   │   ├── infrastructure/       # Cross-cutting technical concerns, no business logic
-│   │   │   │   └── config/           # RabbitMQ, object storage, MyBatis and Jackson wiring
+│   │   │   │   └── config/           # RabbitMQ, object storage, MyBatis, ShedLock and Jackson wiring
 │   │   │   ├── shared/               # Cross-package kernel
 │   │   │   │   └── util/             # Shared utilities
 │   │   │   └── CatalogProcessingWorkerApplication.java  # Spring Boot main class
@@ -32,6 +36,7 @@ docintelligence-catalog-processing-worker/
 │   │       └── logback-spring.xml
 │   └── test/
 │       └── java/com/iqkv/docintelligence/catalogprocessingworker/
+│           ├── venue/                                # Slice unit tests
 │           ├── IntegrationTest.java
 │           ├── TechnicalStructureTest.java          # ArchUnit
 │           └── CatalogProcessingWorkerApplicationTests.java
@@ -43,8 +48,9 @@ docintelligence-catalog-processing-worker/
 
 **Key structural concepts:**
 
-- **No feature slices yet**: this worker exposes no REST surface; when message-processing logic
-  grows, put it in a new top-level vertical-slice package rather than inventing DDD layers.
+- **Feature slice**: `venue` is a self-contained top-level package for the embedding backfill — the
+  `@Scheduled`/ShedLock sweep and the Ollama embed-and-write service live together there. Add further
+  background work as sibling slices rather than inventing DDD layers.
 - **Infrastructure**: Cross-cutting technical concerns (config, messaging, persistence) with no
   business logic.
 - **Shared kernel**: Utilities reused across packages.
@@ -245,8 +251,9 @@ Before making recommendations, agents should understand the project's technology
 - Database: PostgreSQL (production), H2 (test scope — smoke context-load only)
 - **MyBatis** with XML mappers — there is no Spring Data JPA / Hibernate in this project
 - `mybatis.configuration.map-underscore-to-camel-case=true` is enabled globally
-- Mapper interfaces annotated with `@Mapper`; XML mapper files in `src/main/resources/mappers/<context>/`
-- **Shared schema** — this service owns no migrations. It reads and writes the PostgreSQL schema and tables maintained by `docintelligence-catalog-service`, which runs the Liquibase changelogs. There is no `db/changelog/` here and Liquibase is not on the classpath.
+- The venue models and mappers (`Venue`, `VenueMapper`, …) come from the shared `com.iqkv:docintelligence-venue` artifact: `MyBatisConfig` scans `com.iqkv.docintelligence.venue` and loads mappers from the jar (`classpath*:mappers/**/*.xml`). This service ships no mapper XML of its own.
+- `PgVectorTypeHandler` maps `float[]` to the `vector` column, and `MyBatisSchemaInterceptor` switches statements to `t_<tenantKey>` while a `TenantContext` is active
+- **Shared schema** — this service owns no migrations. It reads and writes the PostgreSQL schema and tables maintained by `docintelligence-catalog-service`, which runs the Liquibase changelogs (including the `public.shedlock` table this worker locks against). There is no `db/changelog/` here and Liquibase is not on the classpath.
 
 **Security**
 
@@ -262,7 +269,13 @@ Before making recommendations, agents should understand the project's technology
 
 **AI**
 
-- Spring AI Ollama starter (`spring-ai-starter-model-ollama`) — connectivity to an Ollama instance only
+- Spring AI Ollama starter (`spring-ai-starter-model-ollama`) — the `venue` slice embeds each pending venue via `EmbeddingModel.embed(...)` (model `nomic-embed-text`, shared `VenueEmbeddingText` builder) and writes the vector with `VenueMapper#updateEmbedding`; failures are logged and swallowed, so the row stays `NULL` and is retried on the next pass
+
+**Scheduling**
+
+- Spring `@Scheduled` behind ShedLock (`shedlock-spring` + `shedlock-provider-jdbc-template`) so only one replica runs a job across the cluster
+- `ShedLockConfig` binds a `JdbcTemplateLockProvider` to the `public.shedlock` table owned by `docintelligence-catalog-service`, evaluating lock expiry with the database clock (`usingDbTime()`)
+- `AllTenantsKeyProvider` (`TenantKeyProvider`) enumerates the provisioned `t_%` schemas from `information_schema` so the backfill visits every tenant
 
 **Build & Deployment**
 
