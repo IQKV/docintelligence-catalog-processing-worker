@@ -4,7 +4,7 @@ An event-driven companion worker on the iQ Key Value platform, backed by Postgre
 
 ## Service Role
 
-The service is the **companion worker** (asynchronous sibling service) to the service that owns the control-plane API — not a sidecar. It exposes no inbound HTTP API — every trigger arrives as a message. It consumes work from a queue, processes assets from a shared folder / S3, and publishes feedback events upstream so the producer can make progress. Reads and writes go through MyBatis.
+The service is the **companion worker** (asynchronous sibling service) to the service that owns the control-plane API — not a sidecar. It exposes no inbound HTTP API — every trigger arrives as a message or a schedule tick. It consumes work from a queue, processes assets from a shared folder / S3, and publishes feedback events upstream so the producer can make progress. Reads and writes go through MyBatis.
 
 It is expected to share its PostgreSQL schema and RabbitMQ broker with the service that hands it work, rather than owning them outright — a deliberate exception to the platform's self-contained-service rule, traded for simplicity and per-message performance. What the two share is data, not a host: they run as separate deployables, with independent lifecycles and their own scaling axes.
 
@@ -13,6 +13,7 @@ It is expected to share its PostgreSQL schema and RabbitMQ broker with the servi
 This service provides:
 
 - **Ollama connectivity** — LLM client pre-wired to a local Ollama instance via `spring.ai.ollama.*` (base URL and model configurable per environment)
+- **Scheduled venue embedding backfill** — a ShedLock-guarded job embeds tenant venues whose `embedding` column is still `NULL`, iterating every `t_*` schema against the pgvector column
 - **Persistence** — data stored in PostgreSQL via MyBatis
 - **Messaging** — RabbitMQ connection, Jackson JSON message converter and listener retry policy, gated by `iqkv.messaging.rabbitmq.enabled`
 
@@ -27,6 +28,7 @@ This service provides:
 - Java 25 / Spring Boot (latest via parent POM)
 - Spring AI Ollama starter (local LLM connectivity)
 - MyBatis 3.x (no JPA) + PostgreSQL 17
+- pgvector for embeddings; ShedLock (JDBC) for single-flight scheduled jobs
 - RabbitMQ for async messaging
 - Micrometer + Prometheus
 - Spring Web — Actuator endpoints only
@@ -43,6 +45,7 @@ This service provides:
 - Maven 3.9+
 - Node.js >= 22.15.0 & pnpm >= 10.33.2 (git hooks)
 - Docker & Docker Compose
+- PostgreSQL 17 with the `pgvector` extension (provided by the compose stack)
 - [Ollama](https://ollama.com) running locally with at least one model pulled (e.g. `ollama pull llama3.2`)
 
 ## Quick Start
@@ -72,20 +75,21 @@ docker compose up -d
 
 ## Environment Variables
 
-| Variable                              | Default                  | Description                                   |
-| :------------------------------------ | :----------------------- | :-------------------------------------------- |
-| `DB_HOST`                             | `localhost`              | PostgreSQL host                               |
-| `DB_PORT`                             | `5432`                   | PostgreSQL port                               |
-| `DB_NAME`                             | `catalogservice`         | Database name                                 |
-| `DB_USERNAME`                         | `svc_catalog_dba`        | Database user                                 |
-| `DB_PASSWORD`                         | `svc_catalog_dba`        | Database password                             |
-| `RABBITMQ_HOST`                       | `localhost`              | RabbitMQ host                                 |
-| `RABBITMQ_PORT`                       | `5672`                   | RabbitMQ AMQP port                            |
-| `RABBITMQ_USERNAME`                   | `svc_catalog_rmq`        | RabbitMQ user                                 |
-| `RABBITMQ_PASSWORD`                   | `svc_catalog_rmq`        | RabbitMQ password                             |
-| `SPRING_PROFILES_ACTIVE`              | `local`                  | Active Spring profile                         |
-| `SPRING_AI_OLLAMA_BASE_URL`           | `http://localhost:11434` | Ollama server URL                             |
-| `SPRING_AI_OLLAMA_CHAT_OPTIONS_MODEL` | `llama3.2`               | Model to use (must be pulled in Ollama first) |
+| Variable                                            | Default                  | Description                                        |
+| :-------------------------------------------------- | :----------------------- | :------------------------------------------------- |
+| `DB_HOST`                                           | `localhost`              | PostgreSQL host                                    |
+| `DB_PORT`                                           | `5432`                   | PostgreSQL port                                    |
+| `DB_NAME`                                           | `catalogservice`         | Database name                                      |
+| `DB_USERNAME`                                       | `svc_catalog_dba`        | Database user                                      |
+| `DB_PASSWORD`                                       | `svc_catalog_dba`        | Database password                                  |
+| `RABBITMQ_HOST`                                     | `localhost`              | RabbitMQ host                                      |
+| `RABBITMQ_PORT`                                     | `5672`                   | RabbitMQ AMQP port                                 |
+| `RABBITMQ_USERNAME`                                 | `svc_catalog_rmq`        | RabbitMQ user                                      |
+| `RABBITMQ_PASSWORD`                                 | `svc_catalog_rmq`        | RabbitMQ password                                  |
+| `SPRING_PROFILES_ACTIVE`                            | `local`                  | Active Spring profile                              |
+| `SPRING_AI_OLLAMA_BASE_URL`                         | `http://localhost:11434` | Ollama server URL                                  |
+| `SPRING_AI_OLLAMA_CHAT_OPTIONS_MODEL`               | `llama3.2`               | Model to use (must be pulled in Ollama first)      |
+| `IQKV_CATALOG_VENUE_EMBEDDING_BACKFILL_INTERVAL_MS` | `600000`                 | Delay (ms) between venue embedding backfill passes |
 
 > Copy `.env.example` to `.env.local` / `.env.uat` / `.env.prd` and fill in values per environment. The defaults point to a local Ollama instance — no API key needed for local development.
 
@@ -131,6 +135,7 @@ docker compose -f compose.container.yaml up -d
 
 ```
 src/main/java/com/iqkv/docintelligence/catalogprocessingworker/
+├── venue/            # Tenant venue embedding: embed service + scheduled backfill
 ├── infrastructure/   # Technical concerns: Spring config, RabbitMQ, MyBatis
 ├── shared/           # Common utilities, value objects
 └── CatalogProcessingWorkerApplication.java
@@ -150,6 +155,7 @@ Please read our [Contributing Guidelines](.github/CONTRIBUTING.md) and [Code of 
 
 - **Ollama**: LLM connectivity configured via `spring.ai.ollama.*` (`SPRING_AI_OLLAMA_BASE_URL`, `SPRING_AI_OLLAMA_CHAT_OPTIONS_MODEL`)
 - **Persistence**: MyBatis with XML mappers + PostgreSQL
+- **Scheduled backfill**: `VenueEmbeddingBackfillService` embeds tenant venues whose `embedding` is `NULL` on an interval (`iqkv.catalog.venue-embedding.backfill-interval-ms`, default 10 min), iterating every `t_*` schema; ShedLock against the shared `public.shedlock` table keeps it single-flight across replicas
 - **Messaging**: RabbitMQ connection, Jackson JSON message converter and listener retry policy; `iqkv.messaging.rabbitmq.enabled` toggle — disabled in base profile, enabled per environment
 - **Web**: Spring Web is present only to serve Actuator HTTP endpoints (management port 8081)
 - **Observability**: Micrometer + Prometheus; structured JSON logging with Logstash encoder; health probes for Kubernetes readiness/liveness
