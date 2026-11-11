@@ -41,7 +41,9 @@ class NoInferenceStrategy implements VenueExtractionStrategy {
     this.ctx = ctx;
   }
 
-  /** Always returns {@code true} — this is the catch-all fallback. */
+  /**
+   * Always returns {@code true} — this is the catch-all fallback.
+   */
   @Override
   public boolean supports(final String contentType) {
     return true;
