@@ -77,7 +77,9 @@ class VenueExtractionContext {
   byte[] download(final String s3Key) throws Exception {
     try (InputStream in = minioClient.getObject(
         GetObjectArgs.builder().bucket(storageProps.bucketName()).object(s3Key).build())) {
-      return in.readAllBytes();
+      final byte[] bytes = in.readAllBytes();
+      log.debug("downloaded {} bytes from {}", bytes.length, s3Key);
+      return bytes;
     }
   }
 
@@ -92,9 +94,11 @@ class VenueExtractionContext {
     if (bytes.length == 0) {
       return "";
     }
-    return new TikaDocumentReader(new ByteArrayResource(bytes)).get().stream()
+    final String text = new TikaDocumentReader(new ByteArrayResource(bytes)).get().stream()
         .map(Document::getText)
         .collect(Collectors.joining("\n"));
+    log.debug("extracted {} characters of text from {} bytes", text.length(), bytes.length);
+    return text;
   }
 
   /**

@@ -108,17 +108,22 @@ class VenueAssetProcessingService {
 
       assetMapper.updateStatus(assetId, VenueAsset.STATUS_PARSING, null);
       try {
-        final Venue venue = strategyRouter.select(asset.getContentType()).derive(asset);
+        final VenueExtractionStrategy strategy = strategyRouter.select(asset.getContentType());
+        log.info("processing venue asset {} (tenant {}, contentType={}, file={}) via {}",
+            assetId, tenantKey, asset.getContentType(), asset.getFileName(),
+            strategy.getClass().getSimpleName());
+        final Venue venue = strategy.derive(asset);
         venueMapper.insert(venue);
         assetMapper.linkVenue(assetId, venue.getId());
         embeddingService.embed(venue);
         publishNotification(asset.getUploadedBy(), "VENUE_IMPORT_EXTRACTED",
             Map.of("assetId", assetId.toString(), "venueId", venue.getId().toString()));
         log.info("venue {} created from asset {} (tenant {}) via {}",
-            venue.getId(), assetId, tenantKey,
-            strategyRouter.select(asset.getContentType()).getClass().getSimpleName());
+            venue.getId(), assetId, tenantKey, strategy.getClass().getSimpleName());
       } catch (final Exception ex) {
         final String reason = ex.getMessage() != null ? ex.getMessage() : ex.getClass().getSimpleName();
+        log.error("failed to process venue asset {} (tenant {}, file={}): {}",
+            assetId, tenantKey, asset.getFileName(), reason, ex);
         assetMapper.updateStatus(assetId, VenueAsset.STATUS_FAILED, reason);
         publishNotification(asset.getUploadedBy(), "VENUE_IMPORT_FAILED",
             Map.of("assetId", assetId.toString(), "failureReason", reason));
