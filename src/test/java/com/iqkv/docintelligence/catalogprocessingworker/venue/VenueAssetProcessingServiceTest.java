@@ -19,6 +19,7 @@ package com.iqkv.docintelligence.catalogprocessingworker.venue;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -26,11 +27,13 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.iqkv.docintelligence.catalogprocessingworker.infrastructure.config.ObjectStorageConfigurationProperties;
 import com.iqkv.docintelligence.venue.Venue;
 import com.iqkv.docintelligence.venue.VenueAsset;
@@ -46,6 +49,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.ai.chat.client.ChatClient;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("VenueAssetProcessingService Unit Tests")
@@ -62,17 +66,23 @@ class VenueAssetProcessingServiceTest {
   private MinioClient minioClient;
   @Mock
   private VenueEmbeddingService embeddingService;
+  @Mock
+  private ChatClient.Builder chatClientBuilder;
+  @Mock
+  private ChatClient chatClient;
 
   private VenueAssetProcessingService service;
+  private final ObjectMapper objectMapper = new ObjectMapper();
 
   @BeforeEach
   void setUp() {
+    when(chatClientBuilder.build()).thenReturn(chatClient);
     final ObjectStorageConfigurationProperties props = new ObjectStorageConfigurationProperties(
         "http://localhost:9000", "", "iqkv", "pw", "catalog-assets", "us-east-1", false,
         new ObjectStorageConfigurationProperties.Upload(
             5_242_880L, 60, List.of("application/pdf")));
     service = spy(new VenueAssetProcessingService(
-        venueMapper, assetMapper, minioClient, props, embeddingService));
+        venueMapper, assetMapper, minioClient, props, embeddingService, chatClientBuilder, objectMapper));
   }
 
   @AfterEach
@@ -91,17 +101,16 @@ class VenueAssetProcessingServiceTest {
     return asset;
   }
 
+  // ── process guard-rails ───────────────────────────────────────────────────
+
   @Test
   @DisplayName("process skips an unknown asset and clears the tenant context")
   void processSkipsUnknownAsset() {
-    // Arrange
     final UUID assetId = UUID.randomUUID();
     when(assetMapper.findById(assetId)).thenReturn(Optional.empty());
 
-    // Act
     service.process(TENANT_KEY, assetId);
 
-    // Assert
     verify(assetMapper, never()).updateStatus(any(), any(), any());
     verify(venueMapper, never()).insert(any(Venue.class));
     assertThatThrownBy(TenantContext::getCurrentTenant).isInstanceOf(IllegalStateException.class);
@@ -110,25 +119,48 @@ class VenueAssetProcessingServiceTest {
   @Test
   @DisplayName("process skips an asset that already belongs to a venue")
   void processSkipsAlreadyLinkedAsset() {
-    // Arrange
     final UUID assetId = UUID.randomUUID();
     when(assetMapper.findById(assetId)).thenReturn(Optional.of(asset(assetId, UUID.randomUUID())));
 
-    // Act
     service.process(TENANT_KEY, assetId);
 
-    // Assert
     verify(assetMapper, never()).updateStatus(any(), any(), any());
     verify(venueMapper, never()).insert(any(Venue.class));
   }
 
   @Test
-  @DisplayName("process derives the venue from the file, links the asset and embeds")
-  void processDerivesVenueFromFile() throws Exception {
+  @DisplayName("process marks the asset FAILED and rethrows when the file cannot be read")
+  void processMarksFailedAndRethrows() throws Exception {
+    final UUID assetId = UUID.randomUUID();
+    when(assetMapper.findById(assetId)).thenReturn(Optional.of(asset(assetId, null)));
+    doThrow(new RuntimeException("minio down")).when(service).download(S3_KEY);
+
+    assertThatThrownBy(() -> service.process(TENANT_KEY, assetId))
+        .isInstanceOf(IllegalStateException.class);
+    verify(assetMapper).updateStatus(assetId, VenueAsset.STATUS_FAILED, "minio down");
+    verify(venueMapper, never()).insert(any(Venue.class));
+    assertThatThrownBy(TenantContext::getCurrentTenant).isInstanceOf(IllegalStateException.class);
+  }
+
+  // ── LLM-extracted venue ───────────────────────────────────────────────────
+
+  @Test
+  @DisplayName("process uses LLM-extracted fields when available")
+  void processUsesLlmExtraction() throws Exception {
     // Arrange
     final UUID assetId = UUID.randomUUID();
     when(assetMapper.findById(assetId)).thenReturn(Optional.of(asset(assetId, null)));
-    doReturn("Grand Hall".getBytes(StandardCharsets.UTF_8)).when(service).download(S3_KEY);
+    doReturn("Grand Hall\n171 Bermondsey Street, London".getBytes(StandardCharsets.UTF_8))
+        .when(service).download(S3_KEY);
+    final VenueExtraction extraction = new VenueExtraction(
+        "Grand Hall", "171 Bermondsey Street", "London",
+        51.499, -0.080, 0.85, "A great venue", 90, 90, 60,
+        "Restaurant", "GBP", "from £10pp", "Per person",
+        true, true, true, true, true, true, true,
+        true, true, true, true,
+        "23:00", "01:30",
+        "In-house catering only", true, true, true);
+    doReturn(extraction).when(service).extractWithLlm(anyString(), anyString());
 
     // Act
     service.process(TENANT_KEY, assetId);
@@ -137,50 +169,136 @@ class VenueAssetProcessingServiceTest {
     final ArgumentCaptor<Venue> captor = ArgumentCaptor.forClass(Venue.class);
     verify(venueMapper).insert(captor.capture());
     final Venue venue = captor.getValue();
-    assertThat(venue.getId()).isNotNull();
     assertThat(venue.getName()).isEqualTo("Grand Hall");
+    assertThat(venue.getAddress()).isEqualTo("171 Bermondsey Street");
+    assertThat(venue.getCity()).isEqualTo("London");
+    assertThat(venue.getLocationLat()).isEqualByComparingTo(BigDecimal.valueOf(51.499));
+    assertThat(venue.getLocationLng()).isEqualByComparingTo(BigDecimal.valueOf(-0.080));
+    assertThat(venue.getConfidence()).isEqualByComparingTo(new BigDecimal("0.8500"));
+    assertThat(venue.getMetadata()).contains("max_total").contains("wifi").contains("capacity");
     assertThat(venue.getSource()).isEqualTo("FILE_IMPORT");
-    assertThat(venue.getMetadata()).contains("_schema_version");
 
     verify(assetMapper).updateStatus(assetId, VenueAsset.STATUS_PARSING, null);
     verify(assetMapper).linkVenue(assetId, venue.getId());
     verify(embeddingService).embed(venue);
-    assertThatThrownBy(TenantContext::getCurrentTenant).isInstanceOf(IllegalStateException.class);
   }
 
   @Test
-  @DisplayName("process marks the asset FAILED and rethrows when the file cannot be read")
-  void processMarksFailedAndRethrows() throws Exception {
-    // Arrange
+  @DisplayName("process falls back to Tika first-line name when LLM returns null extraction")
+  void processFallsBackToTikaNameOnNullExtraction() throws Exception {
     final UUID assetId = UUID.randomUUID();
     when(assetMapper.findById(assetId)).thenReturn(Optional.of(asset(assetId, null)));
-    doThrow(new RuntimeException("minio down")).when(service).download(S3_KEY);
+    doReturn("Grand Hall\nSome more text".getBytes(StandardCharsets.UTF_8))
+        .when(service).download(S3_KEY);
+    doReturn(null).when(service).extractWithLlm(anyString(), anyString());
 
-    // Act & Assert
-    assertThatThrownBy(() -> service.process(TENANT_KEY, assetId))
-        .isInstanceOf(IllegalStateException.class);
-    verify(assetMapper).updateStatus(assetId, VenueAsset.STATUS_FAILED, "minio down");
-    verify(venueMapper, never()).insert(any(Venue.class));
-    assertThatThrownBy(TenantContext::getCurrentTenant).isInstanceOf(IllegalStateException.class);
+    service.process(TENANT_KEY, assetId);
+
+    final ArgumentCaptor<Venue> captor = ArgumentCaptor.forClass(Venue.class);
+    verify(venueMapper).insert(captor.capture());
+    assertThat(captor.getValue().getName()).isEqualTo("Grand Hall");
+    assertThat(captor.getValue().getConfidence()).isEqualByComparingTo(new BigDecimal("0.3"));
+    assertThat(captor.getValue().getAddress()).isNull();
+    assertThat(captor.getValue().getMetadata()).isEqualTo("{\"_schema_version\":1}");
   }
 
   @Test
-  @DisplayName("deriveName uses the first non-blank line of the extracted text")
-  void deriveNameUsesFirstNonBlankLine() {
-    assertThat(VenueAssetProcessingService.deriveName("scan.pdf", "\n\n  Grand Hall \n1 Rue"))
+  @DisplayName("process falls back to filename when LLM and Tika text are both blank")
+  void processFallsBackToFilename() throws Exception {
+    final UUID assetId = UUID.randomUUID();
+    when(assetMapper.findById(assetId)).thenReturn(Optional.of(asset(assetId, null)));
+    doReturn(new byte[0]).when(service).download(S3_KEY);
+    doReturn(null).when(service).extractWithLlm(anyString(), anyString());
+
+    service.process(TENANT_KEY, assetId);
+
+    final ArgumentCaptor<Venue> captor = ArgumentCaptor.forClass(Venue.class);
+    verify(venueMapper).insert(captor.capture());
+    assertThat(captor.getValue().getName()).isEqualTo("asset");
+  }
+
+  // ── resolveName ───────────────────────────────────────────────────────────
+
+  @Test
+  @DisplayName("resolveName prefers the LLM name when present")
+  void resolveNamePrefersLlm() {
+    final VenueExtraction ex = extraction("The Last Talisman");
+    assertThat(VenueAssetProcessingService.resolveName(ex, "\nSomething else", "scan.pdf"))
+        .isEqualTo("The Last Talisman");
+  }
+
+  @Test
+  @DisplayName("resolveName falls back to first non-blank Tika line when LLM name is null")
+  void resolveNameFallsBackToTikaLine() {
+    assertThat(VenueAssetProcessingService.resolveName(null, "\n\n  Grand Hall \n1 Rue", "scan.pdf"))
         .isEqualTo("Grand Hall");
   }
 
   @Test
-  @DisplayName("deriveName falls back to the file name without its extension")
-  void deriveNameFallsBackToFileName() {
-    assertThat(VenueAssetProcessingService.deriveName("menu.pdf", "   \n  ")).isEqualTo("menu");
+  @DisplayName("resolveName falls back to filename without extension")
+  void resolveNameFallsBackToFileName() {
+    assertThat(VenueAssetProcessingService.resolveName(null, "   \n  ", "menu.pdf"))
+        .isEqualTo("menu");
   }
 
   @Test
-  @DisplayName("deriveName truncates to the name column width")
-  void deriveNameTruncates() {
+  @DisplayName("resolveName truncates to the name column width")
+  void resolveNameTruncates() {
     final String longLine = "x".repeat(300);
-    assertThat(VenueAssetProcessingService.deriveName("a.pdf", longLine)).hasSize(255);
+    assertThat(VenueAssetProcessingService.resolveName(null, longLine, "a.pdf")).hasSize(255);
+  }
+
+  // ── buildMetadata ─────────────────────────────────────────────────────────
+
+  @Test
+  @DisplayName("buildMetadata returns skeleton JSON when extraction is null")
+  void buildMetadataSkeletonOnNull() {
+    assertThat(service.buildMetadata(null)).isEqualTo("{\"_schema_version\":1}");
+  }
+
+  @Test
+  @DisplayName("buildMetadata populates items from extraction fields")
+  void buildMetadataPopulatesItems() {
+    final VenueExtraction ex = new VenueExtraction(
+        "X", null, null, null, null, null, null,
+        90, 90, 60, "Restaurant", "GBP", null, null,
+        true, null, null, null, null, null, null,
+        null, null, null, null,
+        "23:00", null, null, null, null, null);
+
+    final String metadata = service.buildMetadata(ex);
+    assertThat(metadata)
+        .contains("\"_schema_version\":1")
+        .contains("\"group\":\"capacity\"")
+        .contains("\"field\":\"max_total\"")
+        .contains("\"value\":90")
+        .contains("\"group\":\"venue_type\"")
+        .contains("\"group\":\"av_tech\"")
+        .contains("\"field\":\"wifi\"")
+        .contains("\"group\":\"logistics\"")
+        .contains("\"field\":\"noise_restriction_after\"");
+  }
+
+  @Test
+  @DisplayName("buildMetadata omits items with null values")
+  void buildMetadataOmitsNullValues() {
+    final VenueExtraction ex = new VenueExtraction(
+        "X", null, null, null, null, null, null,
+        null, null, null, null, null, null, null,
+        null, null, null, null, null, null, null,
+        null, null, null, null,
+        null, null, null, null, null, null);
+
+    assertThat(service.buildMetadata(ex)).doesNotContain("items");
+  }
+
+  // ── helpers ───────────────────────────────────────────────────────────────
+
+  private static VenueExtraction extraction(final String name) {
+    return new VenueExtraction(name, null, null, null, null, null, null,
+        null, null, null, null, null, null, null,
+        null, null, null, null, null, null, null,
+        null, null, null, null,
+        null, null, null, null, null, null);
   }
 }
