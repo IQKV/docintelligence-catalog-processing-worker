@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.iqkv.docintelligence.catalogprocessingworker.infrastructure.config.ObjectStorageConfigurationProperties;
 import com.iqkv.docintelligence.venue.Venue;
 import io.minio.GetObjectArgs;
@@ -35,6 +34,7 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.reader.tika.TikaDocumentReader;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Shared extraction utilities used by all {@link VenueExtractionStrategy} implementations.
@@ -57,14 +57,14 @@ class VenueExtractionContext {
 
   private final MinioClient minioClient;
   private final ObjectStorageConfigurationProperties storageProps;
-  private final ObjectMapper objectMapper;
+  private final JsonMapper jsonMapper;
 
   VenueExtractionContext(final MinioClient minioClient,
                          final ObjectStorageConfigurationProperties storageProps,
-                         final ObjectMapper objectMapper) {
+                         final JsonMapper jsonMapper) {
     this.minioClient = minioClient;
     this.storageProps = storageProps;
-    this.objectMapper = objectMapper;
+    this.jsonMapper = jsonMapper;
   }
 
   /**
@@ -177,12 +177,12 @@ class VenueExtractionContext {
       }
     }
     try {
-      final var root = objectMapper.createObjectNode();
+      final var root = jsonMapper.createObjectNode();
       root.put("_schema_version", 1);
       if (!items.isEmpty()) {
-        root.set("items", objectMapper.valueToTree(items));
+        root.set("items", jsonMapper.valueToTree(items));
       }
-      return objectMapper.writeValueAsString(root);
+      return jsonMapper.writeValueAsString(root);
     } catch (final Exception e) {
       log.warn("failed to serialise metadata — using skeleton: {}", e.getMessage());
       return "{\"_schema_version\":1}";
