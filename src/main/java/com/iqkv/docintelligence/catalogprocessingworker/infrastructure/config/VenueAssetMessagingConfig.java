@@ -47,6 +47,13 @@ public class VenueAssetMessagingConfig {
    * Published by {@code docintelligence-catalog-service} when an asset upload is confirmed.
    */
   public static final String ROUTING_VENUE_ASSET_UPLOADED = "venue.asset.uploaded";
+  /**
+   * Routing key for WebSocket-only push notifications — shared with {@code foundation-iam-service}.
+   * Published by this worker after venue extraction completes or fails so the uploader
+   * receives a WebSocket push via the existing notification bell infrastructure.
+   * No email is sent on this routing key.
+   */
+  public static final String ROUTING_NOTIFICATION_IAM_PUSH = "notification.iam.push";
 
   private static final long TTL_24H_MS = 86_400_000L;
 

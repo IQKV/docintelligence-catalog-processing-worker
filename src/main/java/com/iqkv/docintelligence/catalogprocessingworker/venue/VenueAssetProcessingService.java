@@ -21,12 +21,14 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.iqkv.docintelligence.catalogprocessingworker.infrastructure.config.ObjectStorageConfigurationProperties;
+import com.iqkv.docintelligence.catalogprocessingworker.infrastructure.config.VenueAssetMessagingConfig;
 import com.iqkv.docintelligence.venue.Venue;
 import com.iqkv.docintelligence.venue.VenueAsset;
 import com.iqkv.docintelligence.venue.VenueAssetMapper;
@@ -39,6 +41,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.reader.tika.TikaDocumentReader;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
@@ -120,6 +124,10 @@ class VenueAssetProcessingService {
   private final VenueEmbeddingService embeddingService;
   private final ChatClient chatClient;
   private final ObjectMapper objectMapper;
+  /**
+   * Null when messaging is disabled — notification publish is best-effort and skipped when absent.
+   */
+  private final RabbitTemplate rabbitTemplate;
 
   VenueAssetProcessingService(final VenueMapper venueMapper,
                               final VenueAssetMapper assetMapper,
@@ -127,7 +135,8 @@ class VenueAssetProcessingService {
                               final ObjectStorageConfigurationProperties storageProps,
                               final VenueEmbeddingService embeddingService,
                               final ChatClient.Builder chatClientBuilder,
-                              final ObjectMapper objectMapper) {
+                              final ObjectMapper objectMapper,
+                              @Autowired(required = false) final RabbitTemplate rabbitTemplate) {
     this.venueMapper = venueMapper;
     this.assetMapper = assetMapper;
     this.minioClient = minioClient;
@@ -135,6 +144,7 @@ class VenueAssetProcessingService {
     this.embeddingService = embeddingService;
     this.chatClient = chatClientBuilder.build();
     this.objectMapper = objectMapper;
+    this.rabbitTemplate = rabbitTemplate;
   }
 
   /**
@@ -168,14 +178,40 @@ class VenueAssetProcessingService {
         venueMapper.insert(venue);
         assetMapper.linkVenue(assetId, venue.getId());
         embeddingService.embed(venue);
+        publishNotification(asset.getUploadedBy(), "VENUE_IMPORT_EXTRACTED",
+            Map.of("assetId", assetId.toString(), "venueId", venue.getId().toString()));
         log.info("venue {} created from asset {} (tenant {})", venue.getId(), assetId, tenantKey);
       } catch (final Exception ex) {
         final String reason = ex.getMessage() != null ? ex.getMessage() : ex.getClass().getSimpleName();
         assetMapper.updateStatus(assetId, VenueAsset.STATUS_FAILED, reason);
+        publishNotification(asset.getUploadedBy(), "VENUE_IMPORT_FAILED",
+            Map.of("assetId", assetId.toString(), "failureReason", reason));
         throw new IllegalStateException("venue asset processing failed: assetId=" + assetId, ex);
       }
     } finally {
       TenantContext.clear();
+    }
+  }
+
+  private void publishNotification(final UUID targetUserId, final String type,
+                                   final Map<String, Object> payload) {
+    if (rabbitTemplate == null || targetUserId == null) {
+      return;
+    }
+    final boolean success = "VENUE_IMPORT_EXTRACTED".equals(type);
+    final String title = success ? "Venue created" : "Venue import failed";
+    final String message = success
+        ? "Your document has been processed and the venue is ready in the catalog."
+        : "Could not extract venue data from the uploaded document.";
+    final String severity = success ? "SUCCESS" : "ERROR";
+    try {
+      rabbitTemplate.convertAndSend(
+          VenueAssetMessagingConfig.EVENTS_EXCHANGE,
+          VenueAssetMessagingConfig.ROUTING_NOTIFICATION_IAM_PUSH,
+          new VenueImportNotificationEvent(targetUserId, title, message, severity, type, payload));
+    } catch (final Exception ex) {
+      // best-effort — do not let a notification failure affect the processing result
+      log.warn("failed to publish {} notification for user {}: {}", type, targetUserId, ex.getMessage());
     }
   }
 

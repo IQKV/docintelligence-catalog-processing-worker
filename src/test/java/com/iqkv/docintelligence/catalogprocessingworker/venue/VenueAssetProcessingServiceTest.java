@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -35,6 +36,7 @@ import java.util.UUID;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.iqkv.docintelligence.catalogprocessingworker.infrastructure.config.ObjectStorageConfigurationProperties;
+import com.iqkv.docintelligence.catalogprocessingworker.infrastructure.config.VenueAssetMessagingConfig;
 import com.iqkv.docintelligence.venue.Venue;
 import com.iqkv.docintelligence.venue.VenueAsset;
 import com.iqkv.docintelligence.venue.VenueAssetMapper;
@@ -50,6 +52,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("VenueAssetProcessingService Unit Tests")
@@ -70,6 +73,8 @@ class VenueAssetProcessingServiceTest {
   private ChatClient.Builder chatClientBuilder;
   @Mock
   private ChatClient chatClient;
+  @Mock
+  private RabbitTemplate rabbitTemplate;
 
   private VenueAssetProcessingService service;
   private final ObjectMapper objectMapper = new ObjectMapper();
@@ -82,7 +87,8 @@ class VenueAssetProcessingServiceTest {
         new ObjectStorageConfigurationProperties.Upload(
             5_242_880L, 60, List.of("application/pdf")));
     service = spy(new VenueAssetProcessingService(
-        venueMapper, assetMapper, minioClient, props, embeddingService, chatClientBuilder, objectMapper));
+        venueMapper, assetMapper, minioClient, props, embeddingService, chatClientBuilder, objectMapper,
+        rabbitTemplate));
   }
 
   @AfterEach
@@ -90,10 +96,13 @@ class VenueAssetProcessingServiceTest {
     TenantContext.clear();
   }
 
+  private static final UUID UPLOADED_BY = UUID.fromString("00000000-0000-0000-0000-000000000099");
+
   private static VenueAsset asset(final UUID id, final UUID venueId) {
     final VenueAsset asset = new VenueAsset();
     asset.setId(id);
     asset.setVenueId(venueId);
+    asset.setUploadedBy(UPLOADED_BY);
     asset.setFileName("asset.pdf");
     asset.setContentType("application/pdf");
     asset.setS3Key(S3_KEY);
@@ -139,6 +148,10 @@ class VenueAssetProcessingServiceTest {
         .isInstanceOf(IllegalStateException.class);
     verify(assetMapper).updateStatus(assetId, VenueAsset.STATUS_FAILED, "minio down");
     verify(venueMapper, never()).insert(any(Venue.class));
+    verify(rabbitTemplate).convertAndSend(
+        eq(VenueAssetMessagingConfig.EVENTS_EXCHANGE),
+        eq(VenueAssetMessagingConfig.ROUTING_NOTIFICATION_IAM_PUSH),
+        any(VenueImportNotificationEvent.class));
     assertThatThrownBy(TenantContext::getCurrentTenant).isInstanceOf(IllegalStateException.class);
   }
 
@@ -181,6 +194,10 @@ class VenueAssetProcessingServiceTest {
     verify(assetMapper).updateStatus(assetId, VenueAsset.STATUS_PARSING, null);
     verify(assetMapper).linkVenue(assetId, venue.getId());
     verify(embeddingService).embed(venue);
+    verify(rabbitTemplate).convertAndSend(
+        eq(VenueAssetMessagingConfig.EVENTS_EXCHANGE),
+        eq(VenueAssetMessagingConfig.ROUTING_NOTIFICATION_IAM_PUSH),
+        any(VenueImportNotificationEvent.class));
   }
 
   @Test
