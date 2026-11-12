@@ -66,7 +66,7 @@ class TabularDataExtractionStrategy implements VenueExtractionStrategy {
   }
 
   @Override
-  public Venue derive(final VenueAsset asset) throws Exception {
+  public VenueExtractionResult derive(final VenueAsset asset) throws Exception {
     final byte[] bytes = ctx.download(asset.getS3Key());
     final String text = ctx.extractText(bytes);
     final VenueExtraction extraction = classifier.classify(text, asset.getFileName(), TABULAR_HINT);
@@ -81,6 +81,6 @@ class TabularDataExtractionStrategy implements VenueExtractionStrategy {
         ? java.math.BigDecimal.valueOf(extraction.locationLng()) : null);
     venue.setConfidence(VenueExtractionContext.resolveConfidence(extraction));
     venue.setMetadata(ctx.buildMetadata(extraction));
-    return venue;
+    return new VenueExtractionResult(venue, text.isBlank() ? null : text);
   }
 }

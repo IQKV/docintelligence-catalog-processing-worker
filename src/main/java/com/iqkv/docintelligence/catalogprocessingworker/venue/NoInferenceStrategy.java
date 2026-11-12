@@ -50,12 +50,13 @@ class NoInferenceStrategy implements VenueExtractionStrategy {
   }
 
   @Override
-  public Venue derive(final VenueAsset asset) {
+  public VenueExtractionResult derive(final VenueAsset asset) {
     final Venue venue = ctx.newVenueSkeleton();
     venue.setName(VenueExtractionContext.truncate(
         VenueExtractionContext.fileNameBase(asset.getFileName())));
     venue.setConfidence(VenueExtractionContext.CONFIDENCE_NONE);
     venue.setMetadata("{\"_schema_version\":1}");
-    return venue;
+    // No text extraction for image/unknown assets — rawText is null.
+    return new VenueExtractionResult(venue, null);
   }
 }

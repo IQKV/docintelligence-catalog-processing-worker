@@ -36,15 +36,28 @@ interface VenueExtractionStrategy {
   boolean supports(String contentType);
 
   /**
-   * Derives a fully populated {@link Venue} from the given asset.
+   * Derives a fully populated {@link Venue} and the raw text extracted from the asset.
    *
    * <p>The returned venue has a fresh random id and {@code source = "FILE_IMPORT"} but is
    * not yet persisted. The caller (the processing service) handles persistence, embedding,
    * and notification after this method returns.
    *
+   * <p>{@code rawText} is {@code null} when the strategy cannot extract text (e.g. images).
+   * The caller creates a {@code VenueTextContent} row only when {@code rawText} is non-blank.
+   *
    * @param asset the confirmed upload asset — provides s3Key, fileName, contentType
-   * @return a {@link Venue} ready for insertion
+   * @return extraction result containing the derived venue and the raw text (nullable)
    * @throws Exception when the file cannot be read, parsed, or classified fatally
    */
-  Venue derive(VenueAsset asset) throws Exception;
+  VenueExtractionResult derive(VenueAsset asset) throws Exception;
+
+  /**
+   * Pairs the derived {@link Venue} with the raw text that produced it.
+   *
+   * @param venue   the derived venue, never {@code null}
+   * @param rawText the full text extracted from the source document, or {@code null} when no
+   *                text extraction was possible (e.g. image assets)
+   */
+  record VenueExtractionResult(Venue venue, String rawText) {
+  }
 }

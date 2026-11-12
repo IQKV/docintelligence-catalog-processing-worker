@@ -25,6 +25,8 @@ import com.iqkv.docintelligence.venue.Venue;
 import com.iqkv.docintelligence.venue.VenueAsset;
 import com.iqkv.docintelligence.venue.VenueAssetMapper;
 import com.iqkv.docintelligence.venue.VenueMapper;
+import com.iqkv.docintelligence.venue.VenueTextContent;
+import com.iqkv.docintelligence.venue.VenueTextContentMapper;
 import com.iqkv.foundation.tenancy.TenantContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,6 +50,7 @@ import org.springframework.stereotype.Service;
  *   <li>Transition status {@code UPLOADED → PARSING}</li>
  *   <li>Select the extraction strategy by content-type and derive the {@link Venue}</li>
  *   <li>Insert the venue and link the asset (status → {@code EXTRACTED})</li>
+ *   <li>When the strategy produced raw text, insert a linked {@code VenueTextContent} row and embed it</li>
  *   <li>Trigger embedding via {@link VenueEmbeddingService}</li>
  *   <li>Publish a WebSocket push notification to the uploader</li>
  * </ol>
@@ -63,6 +66,7 @@ class VenueAssetProcessingService {
 
   private final VenueMapper venueMapper;
   private final VenueAssetMapper assetMapper;
+  private final VenueTextContentMapper textContentMapper;
   private final VenueEmbeddingService embeddingService;
   private final VenueExtractionStrategyRouter strategyRouter;
   /**
@@ -72,11 +76,13 @@ class VenueAssetProcessingService {
 
   VenueAssetProcessingService(final VenueMapper venueMapper,
                               final VenueAssetMapper assetMapper,
+                              final VenueTextContentMapper textContentMapper,
                               final VenueEmbeddingService embeddingService,
                               final VenueExtractionStrategyRouter strategyRouter,
                               @Autowired(required = false) final RabbitTemplate rabbitTemplate) {
     this.venueMapper = venueMapper;
     this.assetMapper = assetMapper;
+    this.textContentMapper = textContentMapper;
     this.embeddingService = embeddingService;
     this.strategyRouter = strategyRouter;
     this.rabbitTemplate = rabbitTemplate;
@@ -112,10 +118,12 @@ class VenueAssetProcessingService {
         log.info("processing venue asset {} (tenant {}, contentType={}, file={}) via {}",
             assetId, tenantKey, asset.getContentType(), asset.getFileName(),
             strategy.getClass().getSimpleName());
-        final Venue venue = strategy.derive(asset);
+        final VenueExtractionStrategy.VenueExtractionResult result = strategy.derive(asset);
+        final Venue venue = result.venue();
         venueMapper.insert(venue);
         assetMapper.linkVenue(assetId, venue.getId());
         embeddingService.embed(venue);
+        persistTextContent(result.rawText(), venue.getId(), assetId);
         publishNotification(asset.getUploadedBy(), "VENUE_IMPORT_EXTRACTED",
             Map.of("assetId", assetId.toString(), "venueId", venue.getId().toString()));
         log.info("venue {} created from asset {} (tenant {}) via {}",
@@ -152,6 +160,36 @@ class VenueAssetProcessingService {
           new VenueImportNotificationEvent(targetUserId, title, message, severity, type, payload));
     } catch (final Exception ex) {
       log.warn("failed to publish {} notification for user {}: {}", type, targetUserId, ex.getMessage());
+    }
+  }
+
+  /**
+   * Inserts a {@link VenueTextContent} row linked to the just-created venue and embeds it.
+   * Skipped when {@code rawText} is {@code null} or blank (e.g. image assets). Failures are
+   * logged and swallowed — a missing text-content row never fails the pipeline.
+   */
+  private void persistTextContent(final String rawText, final UUID venueId, final UUID sourceAssetId) {
+    if (rawText == null || rawText.isBlank()) {
+      return;
+    }
+    try {
+      final VenueTextContent tc = new VenueTextContent();
+      tc.setId(UUID.randomUUID());
+      tc.setVenueId(venueId);
+      tc.setSourceAssetId(sourceAssetId);
+      tc.setContent(rawText);
+      textContentMapper.insert(tc);
+      try {
+        final float[] vector = embeddingService.embedText(rawText);
+        textContentMapper.updateEmbedding(tc.getId(), vector);
+        log.debug("embedded VenueTextContent {} for venue {}", tc.getId(), venueId);
+      } catch (final RuntimeException ex) {
+        log.warn("VenueTextContent embedding skipped for venue {} — Ollama unavailable: {}",
+            venueId, ex.getMessage());
+      }
+      log.info("VenueTextContent {} created for venue {} ({} chars)", tc.getId(), venueId, rawText.length());
+    } catch (final RuntimeException ex) {
+      log.warn("failed to persist VenueTextContent for venue {}: {}", venueId, ex.getMessage());
     }
   }
 }

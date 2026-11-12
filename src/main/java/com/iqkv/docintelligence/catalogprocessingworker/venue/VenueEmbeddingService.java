@@ -69,4 +69,15 @@ class VenueEmbeddingService {
       return false;
     }
   }
+
+  /**
+   * Embeds raw text and returns the vector. Throws on failure — the caller decides how to handle
+   * it (swallow for best-effort paths, propagate for critical ones).
+   *
+   * @param text the text to embed; must be non-blank
+   * @return the embedding vector
+   */
+  float[] embedText(final String text) {
+    return embeddingModel.embed(text);
+  }
 }
