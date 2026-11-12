@@ -33,6 +33,7 @@ import com.iqkv.docintelligence.venue.Venue;
 import com.iqkv.docintelligence.venue.VenueAsset;
 import com.iqkv.docintelligence.venue.VenueAssetMapper;
 import com.iqkv.docintelligence.venue.VenueMapper;
+import com.iqkv.docintelligence.venue.VenueTextContentMapper;
 import com.iqkv.foundation.tenancy.TenantContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -56,6 +57,8 @@ class VenueAssetProcessingServiceTest {
   @Mock
   private VenueAssetMapper assetMapper;
   @Mock
+  private VenueTextContentMapper textContentMapper;
+  @Mock
   private VenueEmbeddingService embeddingService;
   @Mock
   private VenueExtractionStrategyRouter strategyRouter;
@@ -69,7 +72,7 @@ class VenueAssetProcessingServiceTest {
   @BeforeEach
   void setUp() {
     service = new VenueAssetProcessingService(
-        venueMapper, assetMapper, embeddingService, strategyRouter, rabbitTemplate);
+        venueMapper, assetMapper, textContentMapper, embeddingService, strategyRouter, rabbitTemplate);
   }
 
   @AfterEach
@@ -138,7 +141,7 @@ class VenueAssetProcessingServiceTest {
 
     when(assetMapper.findById(assetId)).thenReturn(Optional.of(asset));
     when(strategyRouter.select("application/pdf")).thenReturn(strategy);
-    when(strategy.derive(asset)).thenReturn(derived);
+    when(strategy.derive(asset)).thenReturn(new VenueExtractionStrategy.VenueExtractionResult(derived, "raw text from pdf"));
 
     // Act
     service.process(TENANT_KEY, assetId);
