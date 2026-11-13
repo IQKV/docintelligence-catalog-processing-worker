@@ -49,6 +49,8 @@ import org.springframework.stereotype.Service;
  *   <li>Load the asset; skip when not found or already linked to a venue</li>
  *   <li>Transition status {@code UPLOADED → PARSING}</li>
  *   <li>Select the extraction strategy by content-type and derive the {@link Venue}</li>
+ *   <li>Match the venue against the master catalog and back-fill blank fields via
+ *       {@link MasterVenueMatchService}</li>
  *   <li>Insert the venue and link the asset (status → {@code EXTRACTED})</li>
  *   <li>When the strategy produced raw text, insert a linked {@code VenueTextContent} row and embed it</li>
  *   <li>Trigger embedding via {@link VenueEmbeddingService}</li>
@@ -69,6 +71,7 @@ class VenueAssetProcessingService {
   private final VenueTextContentMapper textContentMapper;
   private final VenueEmbeddingService embeddingService;
   private final VenueExtractionStrategyRouter strategyRouter;
+  private final MasterVenueMatchService masterVenueMatchService;
   /**
    * Null when messaging is disabled — notification publish is best-effort and skipped when absent.
    */
@@ -79,12 +82,14 @@ class VenueAssetProcessingService {
                               final VenueTextContentMapper textContentMapper,
                               final VenueEmbeddingService embeddingService,
                               final VenueExtractionStrategyRouter strategyRouter,
+                              final MasterVenueMatchService masterVenueMatchService,
                               @Autowired(required = false) final RabbitTemplate rabbitTemplate) {
     this.venueMapper = venueMapper;
     this.assetMapper = assetMapper;
     this.textContentMapper = textContentMapper;
     this.embeddingService = embeddingService;
     this.strategyRouter = strategyRouter;
+    this.masterVenueMatchService = masterVenueMatchService;
     this.rabbitTemplate = rabbitTemplate;
   }
 
@@ -120,6 +125,9 @@ class VenueAssetProcessingService {
             strategy.getClass().getSimpleName());
         final VenueExtractionStrategy.VenueExtractionResult result = strategy.derive(asset);
         final Venue venue = result.venue();
+        // Back-fill blank fields from the master catalog before persisting, so the embedding
+        // (built from name, address, city and metadata) sees the enriched values.
+        masterVenueMatchService.match(venue);
         venueMapper.insert(venue);
         assetMapper.linkVenue(assetId, venue.getId());
         embeddingService.embed(venue);

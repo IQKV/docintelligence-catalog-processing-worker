@@ -63,6 +63,8 @@ class VenueAssetProcessingServiceTest {
   @Mock
   private VenueExtractionStrategyRouter strategyRouter;
   @Mock
+  private MasterVenueMatchService masterVenueMatchService;
+  @Mock
   private VenueExtractionStrategy strategy;
   @Mock
   private RabbitTemplate rabbitTemplate;
@@ -72,7 +74,8 @@ class VenueAssetProcessingServiceTest {
   @BeforeEach
   void setUp() {
     service = new VenueAssetProcessingService(
-        venueMapper, assetMapper, textContentMapper, embeddingService, strategyRouter, rabbitTemplate);
+        venueMapper, assetMapper, textContentMapper, embeddingService, strategyRouter,
+        masterVenueMatchService, rabbitTemplate);
   }
 
   @AfterEach
