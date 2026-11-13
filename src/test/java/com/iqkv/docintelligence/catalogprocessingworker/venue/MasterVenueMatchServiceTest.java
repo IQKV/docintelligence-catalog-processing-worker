@@ -17,7 +17,10 @@
 package com.iqkv.docintelligence.catalogprocessingworker.venue;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -122,5 +125,67 @@ class MasterVenueMatchServiceTest {
     service.match(tenant);
 
     assertThat(tenant.getMasterVenueId()).isNull();
+  }
+
+  @Test
+  @DisplayName("match links a near name heuristically when the exact lookup misses")
+  void matchLinksNearNameHeuristically() {
+    // Arrange: the extracted name carries an extra city token the master omits.
+    final Venue tenant = venue("Grand Hall Berlin");
+    tenant.setCity("Berlin");
+    final MasterVenue matched = master(UUID.randomUUID());
+    when(masterVenueMapper.findByNameIgnoreCase("Grand Hall Berlin")).thenReturn(List.of());
+    stubSearch("Grand Hall Berlin", List.of());
+    stubSearch("berlin", List.of(matched));
+
+    // Act
+    service.match(tenant);
+
+    // Assert
+    assertThat(tenant.getMasterVenueId()).isEqualTo(matched.getId());
+    assertThat(tenant.getAddress()).isEqualTo("Master Street 1");
+  }
+
+  @Test
+  @DisplayName("match adds a city bonus so a partial name match in the same city is accepted")
+  void matchAcceptsPartialNameWithAgreeingCity() {
+    final Venue tenant = venue("City Hall");
+    tenant.setCity("Frankfurt");
+    when(masterVenueMapper.findByNameIgnoreCase("City Hall")).thenReturn(List.of());
+    final MasterVenue candidate = master(UUID.randomUUID());
+    stubSearch("City Hall", List.of(candidate));
+
+    service.match(tenant);
+
+    assertThat(tenant.getMasterVenueId()).isEqualTo(candidate.getId());
+  }
+
+  @Test
+  @DisplayName("match refuses an ambiguous heuristic match so the wrong master is never linked")
+  void matchRefusesAmbiguousCandidates() {
+    final Venue tenant = venue("Grand Hall");
+    when(masterVenueMapper.findByNameIgnoreCase("Grand Hall")).thenReturn(List.of());
+    stubSearch("Grand Hall", List.of(master(UUID.randomUUID()), master(UUID.randomUUID())));
+
+    service.match(tenant);
+
+    assertThat(tenant.getMasterVenueId()).isNull();
+  }
+
+  @Test
+  @DisplayName("match ignores a heuristic candidate below the score threshold")
+  void matchIgnoresWeakCandidate() {
+    final Venue tenant = venue("Central Station");
+    when(masterVenueMapper.findByNameIgnoreCase("Central Station")).thenReturn(List.of());
+    stubSearch("Central Station", List.of(master(UUID.randomUUID())));
+
+    service.match(tenant);
+
+    assertThat(tenant.getMasterVenueId()).isNull();
+  }
+
+  private void stubSearch(final String keyword, final List<MasterVenue> result) {
+    when(masterVenueMapper.search(eq(keyword), isNull(), isNull(), isNull(), anyInt(), anyInt()))
+        .thenReturn(result);
   }
 }
