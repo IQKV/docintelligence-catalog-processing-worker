@@ -9,10 +9,11 @@ This document provides comprehensive guidelines for repository management, devel
 ### Feature-Sliced Project Layout
 
 This worker is organized by **technical packages**, not by DDD layers. It has no HTTP surface and no
-`ping` slice; the `venue` slice owns the asynchronous venue-embedding work, and the small amount of
-application code lives beside the cross-cutting `infrastructure` and `shared` packages. Work is driven
-by a scheduled sweep, and the RabbitMQ wiring is in place but registers no consumer yet. There are
-deliberately no `domain`/`application`/`adapter` packages.
+`ping` slice; the `venue` slice owns all asynchronous venue work — the `venue.asset.uploaded`
+consumer and processing pipeline that derives a venue from an uploaded document, plus the Ollama
+embedding services and the scheduled backfills — and the small amount of application code lives
+beside the cross-cutting `infrastructure` and `shared` packages. Work arrives both over the broker
+and from scheduled sweeps. There are deliberately no `domain`/`application`/`adapter` packages.
 
 ```
 docintelligence-catalog-processing-worker/
@@ -22,9 +23,21 @@ docintelligence-catalog-processing-worker/
 ├── src/
 │   ├── main/
 │   │   ├── java/com/iqkv/docintelligence/catalogprocessingworker/
-│   │   │   ├── venue/                # Vertical slice: venue embedding backfill
-│   │   │   │   ├── VenueEmbeddingBackfillService.java   # @Scheduled + @SchedulerLock sweep
-│   │   │   │   └── VenueEmbeddingService.java           # Ollama embed + vector write
+│   │   │   ├── venue/                # Vertical slice: venue asset processing + embedding backfill
+│   │   │   │   ├── VenueAssetUploadedListener.java              # @RabbitListener for venue.asset.uploaded
+│   │   │   │   ├── VenueAssetProcessingService.java             # pipeline orchestrator
+│   │   │   │   ├── VenueExtractionStrategy.java                 # strategy contract + result record
+│   │   │   │   ├── VenueExtractionStrategyRouter.java           # content-type → strategy selection
+│   │   │   │   ├── RichDocumentExtractionStrategy.java          # PDF / Word / plain text
+│   │   │   │   ├── TabularDataExtractionStrategy.java           # CSV / XLS / XLSX
+│   │   │   │   ├── NoInferenceStrategy.java                     # images + unknown types (catch-all)
+│   │   │   │   ├── DocumentClassifier.java                      # LLM field extraction (prompt + parsing)
+│   │   │   │   ├── VenueExtractionContext.java                  # download, Tika, metadata helpers
+│   │   │   │   ├── VenueExtraction.java                         # LLM extraction result record
+│   │   │   │   ├── VenueImportNotificationEvent.java            # notification.iam.push payload
+│   │   │   │   ├── VenueEmbeddingService.java                   # Ollama embed + vector write
+│   │   │   │   ├── VenueEmbeddingBackfillService.java           # @Scheduled + @SchedulerLock sweep
+│   │   │   │   └── VenueTextContentEmbeddingBackfillService.java# @Scheduled + @SchedulerLock sweep
 │   │   │   ├── infrastructure/       # Cross-cutting technical concerns, no business logic
 │   │   │   │   └── config/           # RabbitMQ, object storage, MyBatis, ShedLock and Jackson wiring
 │   │   │   ├── shared/               # Cross-package kernel
@@ -48,9 +61,10 @@ docintelligence-catalog-processing-worker/
 
 **Key structural concepts:**
 
-- **Feature slice**: `venue` is a self-contained top-level package for the embedding backfill — the
-  `@Scheduled`/ShedLock sweep and the Ollama embed-and-write service live together there. Add further
-  background work as sibling slices rather than inventing DDD layers.
+- **Feature slice**: `venue` is a self-contained top-level package for all asynchronous venue work —
+  the `venue.asset.uploaded` listener and processing pipeline, the content-type extraction strategies,
+  the LLM classifier, the Ollama embed-and-write service and the `@Scheduled`/ShedLock backfills all
+  live together there. Add further background work as sibling slices rather than inventing DDD layers.
 - **Infrastructure**: Cross-cutting technical concerns (config, messaging, persistence) with no
   business logic.
 - **Shared kernel**: Utilities reused across packages.
@@ -251,7 +265,7 @@ Before making recommendations, agents should understand the project's technology
 - Database: PostgreSQL (production), H2 (test scope — smoke context-load only)
 - **MyBatis** with XML mappers — there is no Spring Data JPA / Hibernate in this project
 - `mybatis.configuration.map-underscore-to-camel-case=true` is enabled globally
-- The venue models and mappers (`Venue`, `VenueMapper`, …) come from the shared `com.iqkv:docintelligence-venue` artifact: `MyBatisConfig` scans `com.iqkv.docintelligence.venue` and loads mappers from the jar (`classpath*:mappers/**/*.xml`). This service ships no mapper XML of its own.
+- The venue models and mappers (`Venue`, `VenueAsset`, `VenueTextContent`, `VenueMapper`, `VenueAssetMapper`, `VenueTextContentMapper`, …) come from the shared `com.iqkv:docintelligence-venue` artifact: `MyBatisConfig` scans `com.iqkv.docintelligence.venue` and loads mappers from the jar (`classpath*:mappers/**/*.xml`). This service ships no mapper XML of its own.
 - `PgVectorTypeHandler` maps `float[]` to the `vector` column, and `MyBatisSchemaInterceptor` switches statements to `t_<tenantKey>` while a `TenantContext` is active
 - **Shared schema** — this service owns no migrations. It reads and writes the PostgreSQL schema and tables maintained by `docintelligence-catalog-service`, which runs the Liquibase changelogs (including the `public.shedlock` table this worker locks against). There is no `db/changelog/` here and Liquibase is not on the classpath.
 
@@ -259,6 +273,13 @@ Before making recommendations, agents should understand the project's technology
 
 - No inbound HTTP surface — Spring Web is present only to serve Actuator endpoints (management port 8081)
 - No Spring Security and no JWT in this service: work arrives over the broker, not through the network edge
+
+**Messaging**
+
+- RabbitMQ via Spring AMQP, gated by `iqkv.messaging.rabbitmq.enabled` (default `false`). `VenueAssetMessagingConfig` re-declares the shared `iqkv.events` topic exchange (idempotent with the catalog service), binds this worker's own durable queue `docintelligence.catalog.processing.venue-asset` to the `venue.asset.uploaded` routing key, and declares a DLQ on the shared `iqkv.dlx`.
+- `VenueAssetUploadedListener` consumes the event as a `Map` (the listener parameter type wins over the `__TypeId__` header) and reads only `tenantKey` and `assetId`; `VenueAssetProcessingService` re-reads the asset from the database, which is the source of truth.
+- The queue sets a 24 h message TTL and dead-letters with an explicit `x-dead-letter-routing-key` (`…venue-asset.dlq`); the listener container disables requeue-on-reject and retries 3 times (2 s initial, 2.0 multiplier, 30 s cap) before the message lands in the DLQ. A processing failure therefore dead-letters a poison message instead of looping.
+- Notifications return on the same exchange with routing key `notification.iam.push` (shared with `foundation-iam-service`, WebSocket-only, no email); the publish is best-effort and skipped when no `RabbitTemplate` is present.
 
 **Testing**
 
@@ -269,13 +290,16 @@ Before making recommendations, agents should understand the project's technology
 
 **AI**
 
-- Spring AI Ollama starter (`spring-ai-starter-model-ollama`) — the `venue` slice embeds each pending venue via `EmbeddingModel.embed(...)` (model `nomic-embed-text`, shared `VenueEmbeddingText` builder) and writes the vector with `VenueMapper#updateEmbedding`; failures are logged and swallowed, so the row stays `NULL` and is retried on the next pass
+- Spring AI Ollama starter (`spring-ai-starter-model-ollama`), models `llama3.2` (chat) and `nomic-embed-text` (embeddings), configured through `spring.ai.ollama.*`
+- `DocumentClassifier` is the chat half: it sends the first 8 000 characters of extracted text (truncated at a word boundary) with a fixed extraction prompt and returns a `VenueExtraction`, or `null` when the input is blank, the model throws, or the output cannot be deserialised — so callers fall back to heuristics instead of failing
+- `VenueEmbeddingService` is the embedding half: `embed(Venue)` builds the text with the shared `VenueEmbeddingText` and writes it through `VenueMapper#updateEmbedding`, while `embedText(String)` returns the raw vector for the text-content path. Embedding failures are logged and swallowed, so the row stays `NULL` and is retried on the next backfill pass
 
 **Scheduling**
 
 - Spring `@Scheduled` behind ShedLock (`shedlock-spring` + `shedlock-provider-jdbc-template`) so only one replica runs a job across the cluster
 - `ShedLockConfig` binds a `JdbcTemplateLockProvider` to the `public.shedlock` table owned by `docintelligence-catalog-service`, evaluating lock expiry with the database clock (`usingDbTime()`)
-- `AllTenantsKeyProvider` (`TenantKeyProvider`) enumerates the provisioned `t_%` schemas from `information_schema` so the backfill visits every tenant
+- `VenueEmbeddingBackfillService` (lock `venue-embedding-backfill`) and `VenueTextContentEmbeddingBackfillService` (lock `venue-text-content-embedding-backfill`) are the two `@Scheduled` jobs, driven by `iqkv.catalog.venue-embedding.backfill-interval-ms` and `iqkv.catalog.venue-text-content-embedding.backfill-interval-ms` (both default 10 min). Each embeds rows whose `embedding` is `NULL`, oldest-first, in batches of 50, and stops a tenant's pass as soon as a batch makes no progress — so an unreachable Ollama cannot make the scheduler spin
+- `AllTenantsKeyProvider` (`TenantKeyProvider`) enumerates the provisioned `t_%` schemas from `information_schema` so each backfill visits every tenant
 
 **Build & Deployment**
 
