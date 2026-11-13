@@ -42,8 +42,10 @@ import org.springframework.stereotype.Component;
  *   <li><b>confidence</b> — 0.0–1.0 reflecting how completely the document describes a
  *       single physical venue. Deduct for multi-room decks, missing address, or ambiguous
  *       names.</li>
- *   <li><b>description</b> — marketing prose describing the venue as a whole. Max 2 000
- *       characters. Omit room-level descriptions.</li>
+ *   <li><b>description</b> — one brief "About" paragraph (1–2 sentences, max 300 characters)
+ *       describing the venue as a whole: what it is, what it offers and its character — the
+ *       style of the first paragraph of a Google Maps place description. Omit room-level
+ *       detail, prices and contact details.</li>
  *   <li><b>maxCapacity</b> — largest headcount figure stated for the whole venue.
  *       Positive integer or {@code null}.</li>
  *   <li><b>standingCapacity / seatedCapacity</b> — configuration-specific figures when
@@ -116,7 +118,12 @@ class DocumentClassifier {
       locationLng    : Decimal degrees longitude.
       confidence     : Float 0.0–1.0. How completely the document describes ONE physical venue.
                        Deduct for multi-room-only decks, missing address, or ambiguous names.
-      description    : Marketing prose for the whole venue. Max 2000 chars. No room descriptions.
+      description    : ONE brief "About" paragraph for the whole venue, in the style of the first
+                       paragraph of a Google Maps place description — 1–2 sentences, max 300
+                       chars — saying what the venue IS, what it OFFERS and its CHARACTER.
+                       Example: "Arty bar & club with a menu of upscale barbecue dishes, live
+                       alternative music & DJs."
+                       No room-level detail, no prices, no contact details, no marketing fluff.
       maxCapacity    : Largest total headcount for the whole venue. Positive integer.
       standingCapacity : Standing-only figure when stated.
       seatedCapacity   : Seated/banquet figure when stated.

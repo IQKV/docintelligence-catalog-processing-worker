@@ -62,6 +62,7 @@ class RichDocumentExtractionStrategy implements VenueExtractionStrategy {
 
     final Venue venue = ctx.newVenueSkeleton();
     venue.setName(VenueExtractionContext.resolveName(extraction, text, asset.getFileName()));
+    venue.setDescription(extraction != null ? extraction.description() : null);
     venue.setAddress(extraction != null ? extraction.address() : null);
     venue.setCity(extraction != null ? extraction.city() : null);
     venue.setLocationLat(extraction != null && extraction.locationLat() != null
