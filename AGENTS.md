@@ -1040,54 +1040,40 @@ risk_evaluation:
 
 ### Common Patterns and Solutions
 
-**Pattern: Adding a new REST endpoint**
+**Pattern: Adding a new extraction strategy**
+
+The router is explicit — it holds each strategy as a field and checks them in priority order, so a new type is a code change, not just a new bean.
 
 ```java
-// 1. Define DTO
-public record CreateRequest(@NotBlank String name) {}
+// 1. Implement the contract
+@Component
+class AudioTranscriptExtractionStrategy implements VenueExtractionStrategy {
 
-// 2. Add service method
-@Service
-public class MyService {
+  @Override
+  public boolean supports(final String contentType) {
+    return "audio/mpeg".equals(contentType);
+  }
 
-  public MyDto create(CreateRequest request) {
-    /* ... */
+  @Override
+  public VenueExtractionResult derive(final VenueAsset asset) throws Exception {
+    // download, parse, classify — return the venue plus the raw text (null when none)
+    return new VenueExtractionResult(venue, rawText);
   }
 }
 
-// 3. Add controller endpoint
-@RestController
-public class MyController {
-
-  @PostMapping
-  public ResponseEntity<MyDto> create(@Valid @RequestBody CreateRequest request) {
-    return ResponseEntity.status(HttpStatus.CREATED).body(myService.create(request));
-  }
-}
-
-// 4. Add tests
-@Test
-void shouldCreateResource() {
-  /* ... */
-}
+// 2. Inject it into VenueExtractionStrategyRouter and check it before the catch-all
+// 3. Test supports() and the derivation output
 ```
 
-**Pattern: Adding database migration (Liquibase)**
+`NoInferenceStrategy` is the catch-all: the router returns it by default rather than through a `supports()` check, so a strategy appended after it would never run — cover `supports()` with a test.
 
-```xml
-<changeSet id="001" author="developer">
-    <createTable tableName="users">
-        <column name="id" type="bigint" autoIncrement="true">
-            <constraints primaryKey="true"/>
-        </column>
-        <column name="username" type="varchar(100)">
-            <constraints nullable="false" unique="true"/>
-        </column>
-        <column name="created_at" type="timestamp"
-                defaultValueComputed="CURRENT_TIMESTAMP"/>
-    </createTable>
-</changeSet>
-```
+**Pattern: Changing the shared schema**
+
+Migrations live in `docintelligence-catalog-service`, which owns the schema and runs Liquibase. This worker has no `db/changelog/` and Liquibase is not on its classpath, so a schema change means:
+
+1. Add the changeset in the catalog service and let it apply.
+2. Update the model or mapper in the shared `com.iqkv:docintelligence-venue` artifact.
+3. Run `./mvnw verify` here once the catalog-side changelog is in place.
 
 **Pattern: Adding caching**
 
