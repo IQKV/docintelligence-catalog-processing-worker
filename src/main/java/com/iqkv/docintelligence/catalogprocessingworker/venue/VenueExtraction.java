@@ -41,9 +41,9 @@ record VenueExtraction(
     Double locationLng,
     Double confidence,
     String description,
-    /** Free-text location context not captured by the address (e.g. transport access). */
+    // Free-text location context not captured by the address (e.g. transport access).
     String locationNotes,
-    /** Comma-separated amenity tags (e.g. "Rooftop terrace, Built-in bar"). */
+    // Comma-separated amenity tags (e.g. "Rooftop terrace, Built-in bar").
     String amenities,
 
     // ── Capacity ──────────────────────────────────────────────────────────────
@@ -53,18 +53,13 @@ record VenueExtraction(
     Integer classroomCapacity,
     Integer conferenceCapacity,
 
-    // ── Venue type (must match spec enum exactly) ─────────────────────────────
-    /**
-     * One of the 22 allowed values from the metadata spec, e.g. "Bar or lounge",
-     * "Rooftop", "Conference centre". Use "Unclassified" when none fits.
-     */
+    // ── Venue type — must match one of the 22 spec enum values exactly ────────
+    // e.g. "Bar or lounge", "Rooftop", "Conference centre". Use "Unclassified" when none fits.
     String venueType,
 
     // ── Catering ──────────────────────────────────────────────────────────────
-    /**
-     * One of: "In-house catering only", "External catering only",
-     * "In-house and external catering both allowed", "Catering not specified".
-     */
+    // One of: "In-house catering only", "External catering only",
+    // "In-house and external catering both allowed", "Catering not specified".
     String cateringPolicy,
     Boolean kosherAvailable,
     Boolean halalAvailable,
@@ -93,7 +88,7 @@ record VenueExtraction(
     Boolean sharedSpace,
 
     // ── Logistics ─────────────────────────────────────────────────────────────
-    /** Noise curfew in 24-hour HH:mm format (e.g. "23:00"). */
+    // Noise curfew in 24-hour HH:mm format (e.g. "23:00").
     String curfewTime,
     String loadInAccess,
     Integer parkingSpaces,
@@ -102,13 +97,13 @@ record VenueExtraction(
     Double teardownHoursAfter,
 
     // ── Pricing ───────────────────────────────────────────────────────────────
-    /** ISO 4217 code derived from symbol when not explicit: £→GBP, €→EUR, $→USD. */
+    // ISO 4217 code derived from symbol when not explicit: £→GBP, €→EUR, $→USD.
     String currency,
     Double minimumSpend,
     Double rentalFeeIndicative,
 
     // ── Online / social ───────────────────────────────────────────────────────
-    /** Instagram handle including the @ prefix (e.g. "@venuename"). */
+    // Instagram handle including the @ prefix (e.g. "@venuename").
     String instagramHandle,
     Double googleRating,
     Integer googleReviewCount
