@@ -30,55 +30,15 @@ import org.springframework.stereotype.Component;
  * {@code null} when the model call fails or produces unusable output so callers can apply
  * the heuristic fallback chain.
  *
- * <h2>Extraction rules (encoded in the prompt)</h2>
- * <ul>
- *   <li><b>name</b> — the venue's trading name, not a room or event name. Prefer the
- *       largest heading on the first page. Max 255 characters.</li>
- *   <li><b>address</b> — full street address as written. Include building name when present.
- *       Omit country when already in city. Max 500 characters.</li>
- *   <li><b>city</b> — city only, no county or country.</li>
- *   <li><b>locationLat / locationLng</b> — decimal degrees from an embedded map or
- *       coordinates block; {@code null} when not present.</li>
- *   <li><b>confidence</b> — 0.0–1.0 reflecting how completely the document describes a
- *       single physical venue. Deduct for multi-room decks, missing address, or ambiguous
- *       names.</li>
- *   <li><b>description</b> — one brief "About" paragraph (1–2 sentences, max 300 characters)
- *       describing the venue as a whole: what it is, what it offers and its character — the
- *       style of the first paragraph of a Google Maps place description. Omit room-level
- *       detail, prices and contact details.</li>
- *   <li><b>maxCapacity</b> — largest headcount figure stated for the whole venue.
- *       Positive integer or {@code null}.</li>
- *   <li><b>standingCapacity / seatedCapacity</b> — configuration-specific figures when
- *       stated; {@code null} otherwise.</li>
- *   <li><b>venueType</b> — one of:
- *       {@code Restaurant}, {@code Bar}, {@code Hotel}, {@code Conference Centre},
- *       {@code Event Space}, {@code Outdoor}, {@code Museum}, {@code Gallery},
- *       {@code Sports Venue}, {@code Rooftop}, {@code Other}.
- *       Pick the closest match; use {@code Other} when none fits.</li>
- *   <li><b>currency</b> — ISO 4217 code (e.g. {@code GBP}, {@code EUR}, {@code USD});
- *       derive from symbol (£→GBP, €→EUR, $→USD) when the code is not explicit.</li>
- *   <li><b>priceRangeHint</b> — the price statement as written (e.g.
- *       "from £10 per person"). Max 100 characters.</li>
- *   <li><b>priceMethod</b> — one of: {@code Per person}, {@code Flat rate},
- *       {@code Per hour}, {@code Per day}, {@code Minimum spend}; derive from context.</li>
- *   <li><b>noiseRestrictionAfter / alcoholLicenceUntil</b> — 24-hour time string
- *       {@code HH:mm} (e.g. {@code 23:00}); {@code null} when not stated.</li>
- *   <li><b>cateringPolicy</b> — one of: {@code In-house catering only},
- *       {@code External catering allowed}, {@code BYO allowed}, {@code No catering};
- *       derive from policy text.</li>
- *   <li><b>Boolean fields</b> ({@code wifi}, {@code airConditioning}, {@code naturalLight},
- *       {@code privateBar}, {@code privateEntrance}, {@code privateToilets},
- *       {@code parkingAvailable}, {@code builtInAv}, {@code projector},
- *       {@code flatscreenTv}, {@code whiteboard}, {@code veganAvailable},
- *       {@code vegetarianAvailable}, {@code glutenFreeAvailable}) —
- *       {@code true} when the document confirms the feature, {@code false} when explicitly
- *       denied, {@code null} when not mentioned.</li>
- * </ul>
+ * <h2>Field alignment</h2>
+ * <p>All enum values and field names in the system prompt match the front-end metadata spec
+ * ({@code metadata-spec.ts}) verbatim so extracted values map directly to displayable metadata
+ * rows without a translation layer.
  *
  * <h2>Text handling</h2>
- * <p>The first {@value #TEXT_MAX_CHARS} characters of the extracted text are sent to the
- * model. If the document produces less, the full text is used. The truncation point is
- * chosen to avoid cutting mid-word.
+ * <p>The caller must normalise and truncate the text before passing it here (see
+ * {@link VenueExtractionContext#normaliseAndTruncate}). The first {@value #TEXT_MAX_CHARS}
+ * characters after normalisation are sent to the model.
  * shortcut: fixed character cap; upgrade to sliding-window chunking for large decks.
  */
 @Component
@@ -87,19 +47,15 @@ class DocumentClassifier {
   private static final Logger log = LoggerFactory.getLogger(DocumentClassifier.class);
 
   /**
-   * Maximum characters of document text forwarded to the model.
+   * Maximum characters of normalised document text forwarded to the model.
    * Keeps requests within typical Ollama context windows (~8 k tokens ≈ 32 k chars).
    */
   static final int TEXT_MAX_CHARS = 8_000;
 
-  /**
-   * System message that sets the model's role and output contract.
-   */
   private static final String SYSTEM_PROMPT = """
       You are a structured data extraction assistant specialised in venue brochures,
       capacity sheets, rate cards, and event-space flyers.
-      Your task is to read the document text provided by the user and extract venue information
-      into a single JSON object.
+      Extract venue information from the document text into a single JSON object.
 
       OUTPUT CONTRACT
       ───────────────
@@ -118,29 +74,58 @@ class DocumentClassifier {
       locationLng    : Decimal degrees longitude.
       confidence     : Float 0.0–1.0. How completely the document describes ONE physical venue.
                        Deduct for multi-room-only decks, missing address, or ambiguous names.
-      description    : ONE brief "About" paragraph for the whole venue, in the style of the first
-                       paragraph of a Google Maps place description — 1–2 sentences, max 300
-                       chars — saying what the venue IS, what it OFFERS and its CHARACTER.
-                       Example: "Arty bar & club with a menu of upscale barbecue dishes, live
-                       alternative music & DJs."
-                       No room-level detail, no prices, no contact details, no marketing fluff.
+      description    : ONE "About" paragraph — 1–2 sentences, max 300 chars — saying what the
+                       venue IS, what it OFFERS and its CHARACTER, in the style of a Google Maps
+                       place description. No room detail, prices, or contact info.
+      locationNotes  : Context not captured by the address (e.g. transport access, freight). Max 200 chars.
+      amenities      : Comma-separated amenity tags visible in the document
+                       (e.g. "Rooftop terrace, Built-in bar, Green room").
+
       maxCapacity    : Largest total headcount for the whole venue. Positive integer.
-      standingCapacity : Standing-only figure when stated.
+      standingCapacity : Standing/cocktail figure when stated.
       seatedCapacity   : Seated/banquet figure when stated.
-      venueType      : EXACTLY one of: Restaurant | Bar | Hotel | Conference Centre |
-                       Event Space | Outdoor | Museum | Gallery | Sports Venue | Rooftop | Other
-      currency       : ISO 4217 code. Derive from symbol: £→GBP, €→EUR, $→USD.
-      priceRangeHint : Price statement as written. Max 100 chars.
-      priceMethod    : EXACTLY one of: Per person | Flat rate | Per hour | Per day |
-                       Minimum spend
-      noiseRestrictionAfter : 24-hour HH:mm (e.g. 23:00).
-      alcoholLicenceUntil   : 24-hour HH:mm (e.g. 01:30).
-      cateringPolicy : EXACTLY one of: In-house catering only | External catering allowed |
-                       BYO allowed | No catering
-      wifi, airConditioning, naturalLight, privateBar, privateEntrance, privateToilets,
-      parkingAvailable, builtInAv, projector, flatscreenTv, whiteboard,
-      veganAvailable, vegetarianAvailable, glutenFreeAvailable :
+      classroomCapacity : Classroom layout figure when stated.
+      conferenceCapacity : Boardroom/conference layout figure when stated.
+
+      venueType      : EXACTLY one of:
+                       Restaurant | Hotel | Bar or lounge | Rooftop | Gallery |
+                       Warehouse or industrial space | Studio |
+                       Outdoor garden or terrace | Town hall or community centre |
+                       Conference centre | Stadium or arena | Museum |
+                       Theatre or cinema | Boat or yacht | Marquee, tipi or barn |
+                       Park, zoo or gardens | Place of worship |
+                       Private members club | Nightclub |
+                       Historic house or estate | Beach or coastal venue | Unclassified
+                       Pick the closest match; use Unclassified when none fits.
+
+      cateringPolicy : EXACTLY one of:
+                       In-house catering only | External catering only |
+                       In-house and external catering both allowed | Catering not specified
+
+      kosherAvailable, halalAvailable, veganAvailable,
+      builtInAv, wifi, projector, riggingPoints,
+      adaCompliant, elevatorAccess, accessibleRestrooms, wheelchairStageAccess,
+      outdoorSpaceAvailable, outdoorSpaceCovered,
+      exclusiveUse, sharedSpace,
+      valetAvailable :
                        true when confirmed, false when explicitly denied, null when not mentioned.
+
+      internetBandwidthMbps : Integer Mbps when stated.
+      outdoorSpaceSqm       : Outdoor area in square metres when stated.
+      parkingSpaces         : Number of parking spaces when stated.
+      setupHoursBefore      : Setup time in hours before the event (decimal).
+      teardownHoursAfter    : Teardown time in hours after the event (decimal).
+
+      curfewTime     : Noise curfew in 24-hour HH:mm (e.g. 23:00).
+      loadInAccess   : Load-in access description (e.g. "Freight elevator, rear access").
+
+      currency       : ISO 4217 code. Derive from symbol: £→GBP, €→EUR, $→USD.
+      minimumSpend   : Minimum F&B or hire spend as a number (no currency symbol).
+      rentalFeeIndicative : Indicative hire fee as a number (no currency symbol).
+
+      instagramHandle     : Instagram handle including @ (e.g. @venuename).
+      googleRating        : Numeric rating 0.0–5.0.
+      googleReviewCount   : Integer review count.
       """;
 
   private final ChatClient chatClient;
@@ -152,10 +137,12 @@ class DocumentClassifier {
   /**
    * Classifies the venue document text and returns a structured {@link VenueExtraction}.
    *
-   * <p>Returns {@code null} when the text is blank, the model throws, or the output cannot
+   * <p>The caller must pass already-normalised and truncated text (see
+   * {@link VenueExtractionContext#normaliseAndTruncate}).
+   * Returns {@code null} when the text is blank, the model throws, or the output cannot
    * be deserialised. The caller applies the heuristic fallback chain.
    *
-   * @param text     plain text from the document; may be null or blank
+   * @param text     normalised plain text from the document; may be null or blank
    * @param fileName original file name, used only for log context
    * @return a populated {@link VenueExtraction}, or {@code null} on failure
    */
@@ -168,7 +155,7 @@ class DocumentClassifier {
    * message. Use this overload when the document type provides structural context the model
    * benefits from knowing (e.g. "The text below was extracted from a CSV spreadsheet").
    *
-   * @param text     plain text from the document; may be null or blank
+   * @param text     normalised plain text from the document; may be null or blank
    * @param fileName original file name, used only for log context
    * @param hint     optional preamble prepended to the user message; {@code null} to omit
    * @return a populated {@link VenueExtraction}, or {@code null} on failure
@@ -179,13 +166,15 @@ class DocumentClassifier {
       return null;
     }
 
-    final String truncated = truncate(text);
-    final String input = hint != null && !hint.isBlank() ? hint + "\n\n" + truncated : truncated;
+    final String input = hint != null && !hint.isBlank() ? hint + "\n\n" + text : text;
+    // Safety-net truncation: strategies call normaliseAndTruncate before classify, but
+    // callers that bypass the strategy (e.g. tests) should still be bounded correctly.
+    final String bounded = VenueExtractionContext.normaliseAndTruncate(input);
     try {
       final VenueExtraction result = chatClient
           .prompt()
           .system(SYSTEM_PROMPT)
-          .user(input)
+          .user(bounded)
           .call()
           .entity(VenueExtraction.class);
 
@@ -200,20 +189,5 @@ class DocumentClassifier {
           fileName, ex.getMessage());
       return null;
     }
-  }
-
-  /**
-   * Truncates the text to {@value #TEXT_MAX_CHARS} characters without splitting a word.
-   */
-  private static String truncate(final String text) {
-    if (text.length() <= TEXT_MAX_CHARS) {
-      return text;
-    }
-    // Walk back from the cap to the nearest whitespace so we don't cut mid-word.
-    int cut = TEXT_MAX_CHARS;
-    while (cut > 0 && !Character.isWhitespace(text.charAt(cut))) {
-      cut--;
-    }
-    return cut > 0 ? text.substring(0, cut) : text.substring(0, TEXT_MAX_CHARS);
   }
 }

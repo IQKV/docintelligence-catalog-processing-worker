@@ -27,9 +27,13 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
  *
  * <p>{@code confidence} is the model's self-assessed extraction quality on a 0–1 scale; callers
  * clamp it to [0.0, 1.0] and fall back to {@code 0.3} when the model omits it.
+ *
+ * <p>Field names and allowed values are aligned with the front-end metadata spec
+ * ({@code metadata-spec.ts}) so extracted values map directly to displayable metadata rows.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 record VenueExtraction(
+    // ── Core venue identity ───────────────────────────────────────────────────
     String name,
     String address,
     String city,
@@ -37,29 +41,76 @@ record VenueExtraction(
     Double locationLng,
     Double confidence,
     String description,
+    /** Free-text location context not captured by the address (e.g. transport access). */
+    String locationNotes,
+    /** Comma-separated amenity tags (e.g. "Rooftop terrace, Built-in bar"). */
+    String amenities,
+
+    // ── Capacity ──────────────────────────────────────────────────────────────
     Integer maxCapacity,
     Integer standingCapacity,
     Integer seatedCapacity,
+    Integer classroomCapacity,
+    Integer conferenceCapacity,
+
+    // ── Venue type (must match spec enum exactly) ─────────────────────────────
+    /**
+     * One of the 22 allowed values from the metadata spec, e.g. "Bar or lounge",
+     * "Rooftop", "Conference centre". Use "Unclassified" when none fits.
+     */
     String venueType,
-    String currency,
-    String priceRangeHint,
-    String priceMethod,
-    Boolean wifi,
-    Boolean airConditioning,
-    Boolean naturalLight,
-    Boolean privateBar,
-    Boolean privateEntrance,
-    Boolean privateToilets,
-    Boolean parkingAvailable,
-    Boolean builtInAv,
-    Boolean projector,
-    Boolean flatscreenTv,
-    Boolean whiteboard,
-    String noiseRestrictionAfter,
-    String alcoholLicenceUntil,
+
+    // ── Catering ──────────────────────────────────────────────────────────────
+    /**
+     * One of: "In-house catering only", "External catering only",
+     * "In-house and external catering both allowed", "Catering not specified".
+     */
     String cateringPolicy,
+    Boolean kosherAvailable,
+    Boolean halalAvailable,
     Boolean veganAvailable,
-    Boolean vegetarianAvailable,
-    Boolean glutenFreeAvailable
+
+    // ── AV & technology ───────────────────────────────────────────────────────
+    Boolean builtInAv,
+    Boolean wifi,
+    Boolean projector,
+    Boolean riggingPoints,
+    Integer internetBandwidthMbps,
+
+    // ── Accessibility ─────────────────────────────────────────────────────────
+    Boolean adaCompliant,
+    Boolean elevatorAccess,
+    Boolean accessibleRestrooms,
+    Boolean wheelchairStageAccess,
+
+    // ── Outdoor space ─────────────────────────────────────────────────────────
+    Boolean outdoorSpaceAvailable,
+    Boolean outdoorSpaceCovered,
+    Integer outdoorSpaceSqm,
+
+    // ── Exclusivity ───────────────────────────────────────────────────────────
+    Boolean exclusiveUse,
+    Boolean sharedSpace,
+
+    // ── Logistics ─────────────────────────────────────────────────────────────
+    /** Noise curfew in 24-hour HH:mm format (e.g. "23:00"). */
+    String curfewTime,
+    String loadInAccess,
+    Integer parkingSpaces,
+    Boolean valetAvailable,
+    Double setupHoursBefore,
+    Double teardownHoursAfter,
+
+    // ── Pricing ───────────────────────────────────────────────────────────────
+    /** ISO 4217 code derived from symbol when not explicit: £→GBP, €→EUR, $→USD. */
+    String currency,
+    Double minimumSpend,
+    Double rentalFeeIndicative,
+
+    // ── Online / social ───────────────────────────────────────────────────────
+    /** Instagram handle including the @ prefix (e.g. "@venuename"). */
+    String instagramHandle,
+    Double googleRating,
+    Integer googleReviewCount
 ) {
 }

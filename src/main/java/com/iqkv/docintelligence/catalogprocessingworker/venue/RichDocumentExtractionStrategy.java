@@ -58,7 +58,8 @@ class RichDocumentExtractionStrategy implements VenueExtractionStrategy {
   public VenueExtractionResult derive(final VenueAsset asset) throws Exception {
     final byte[] bytes = ctx.download(asset.getS3Key());
     final String text = ctx.extractText(bytes);
-    final VenueExtraction extraction = classifier.classify(text, asset.getFileName());
+    final VenueExtraction extraction = classifier.classify(
+        VenueExtractionContext.normaliseAndTruncate(text), asset.getFileName());
 
     final Venue venue = ctx.newVenueSkeleton();
     venue.setName(VenueExtractionContext.resolveName(extraction, text, asset.getFileName()));

@@ -147,38 +147,71 @@ class VenueExtractionContext {
    * Builds the metadata JSONB document from the LLM extraction.
    * Populates the same {@code {"group","field","value"}} item schema used by the master-venue
    * catalog so downstream matching and display logic works without schema changes.
+   * Field keys are aligned with the front-end metadata spec ({@code metadata-spec.ts}).
    * Returns the minimal {@code {"_schema_version":1}} skeleton when extraction is null.
    */
   String buildMetadata(final VenueExtraction ex) {
     final List<MetadataItem> items = new ArrayList<>();
     if (ex != null) {
+      // ── Basic info ──────────────────────────────────────────────────────────
+      addItem(items, "basic", "location_notes", ex.locationNotes());
+      addItem(items, "basic", "amenities", splitAmenities(ex.amenities()));
+
+      // ── Venue type ──────────────────────────────────────────────────────────
+      addItem(items, "venue_type", "venue_type", ex.venueType() != null
+          ? List.of(ex.venueType()) : null);
+
+      // ── Capacity ────────────────────────────────────────────────────────────
       addItem(items, "capacity", "max_total", ex.maxCapacity());
-      addItem(items, "capacity", "configurations.standing", ex.standingCapacity());
-      addItem(items, "capacity", "configurations.seated", ex.seatedCapacity());
-      addItem(items, "venue_type", "venue_type", ex.venueType());
+      addItem(items, "capacity", "configurations.cocktail", ex.standingCapacity());
+      addItem(items, "capacity", "configurations.banquet", ex.seatedCapacity());
+      addItem(items, "capacity", "configurations.classroom", ex.classroomCapacity());
+      addItem(items, "capacity", "configurations.conference", ex.conferenceCapacity());
+
+      // ── Catering ────────────────────────────────────────────────────────────
       addItem(items, "catering", "policy", ex.cateringPolicy());
+      addItem(items, "catering", "kosher_available", ex.kosherAvailable());
+      addItem(items, "catering", "halal_available", ex.halalAvailable());
       addItem(items, "catering", "vegan_available", ex.veganAvailable());
-      addItem(items, "catering", "vegetarian_available", ex.vegetarianAvailable());
-      addItem(items, "catering", "gluten_free_available", ex.glutenFreeAvailable());
-      addItem(items, "catering", "alcohol_licence_until", ex.alcoholLicenceUntil());
+
+      // ── AV & technology ─────────────────────────────────────────────────────
       addItem(items, "av_tech", "built_in_av", ex.builtInAv());
       addItem(items, "av_tech", "wifi", ex.wifi());
-      addItem(items, "av_tech", "projector", ex.projector());
-      addItem(items, "av_tech", "flatscreen_tv", ex.flatscreenTv());
-      addItem(items, "av_tech", "whiteboard", ex.whiteboard());
-      addItem(items, "logistics", "air_conditioning", ex.airConditioning());
-      addItem(items, "logistics", "natural_light", ex.naturalLight());
-      addItem(items, "logistics", "private_bar", ex.privateBar());
-      addItem(items, "logistics", "private_entrance", ex.privateEntrance());
-      addItem(items, "logistics", "private_toilets", ex.privateToilets());
-      addItem(items, "logistics", "parking_available", ex.parkingAvailable());
-      addItem(items, "logistics", "noise_restriction_after", ex.noiseRestrictionAfter());
+      addItem(items, "av_tech", "rigging_points", ex.riggingPoints());
+      addItem(items, "av_tech", "internet_bandwidth_mbps", ex.internetBandwidthMbps());
+
+      // ── Accessibility ───────────────────────────────────────────────────────
+      addItem(items, "accessibility", "ada_compliant", ex.adaCompliant());
+      addItem(items, "accessibility", "elevator_access", ex.elevatorAccess());
+      addItem(items, "accessibility", "accessible_restrooms", ex.accessibleRestrooms());
+      addItem(items, "accessibility", "wheelchair_stage_access", ex.wheelchairStageAccess());
+
+      // ── Outdoor space ───────────────────────────────────────────────────────
+      addItem(items, "outdoor_space", "available", ex.outdoorSpaceAvailable());
+      addItem(items, "outdoor_space", "covered", ex.outdoorSpaceCovered());
+      addItem(items, "outdoor_space", "sqm", ex.outdoorSpaceSqm());
+
+      // ── Exclusivity ─────────────────────────────────────────────────────────
+      addItem(items, "exclusivity", "exclusive_use", ex.exclusiveUse());
+      addItem(items, "exclusivity", "shared_space", ex.sharedSpace());
+
+      // ── Logistics ───────────────────────────────────────────────────────────
+      addItem(items, "logistics", "load_in_access", ex.loadInAccess());
+      addItem(items, "logistics", "parking_spaces", ex.parkingSpaces());
+      addItem(items, "logistics", "valet_available", ex.valetAvailable());
+      addItem(items, "logistics", "curfew_time", ex.curfewTime());
+      addItem(items, "logistics", "setup_hours_before", ex.setupHoursBefore());
+      addItem(items, "logistics", "teardown_hours_after", ex.teardownHoursAfter());
+
+      // ── Pricing ─────────────────────────────────────────────────────────────
       addItem(items, "pricing", "currency", ex.currency());
-      addItem(items, "pricing", "price_range_hint", ex.priceRangeHint());
-      addItem(items, "pricing", "price_method", ex.priceMethod());
-      if (ex.description() != null && !ex.description().isBlank()) {
-        addItem(items, "description", "description", ex.description());
-      }
+      addItem(items, "pricing", "minimum_spend", ex.minimumSpend());
+      addItem(items, "pricing", "rental_fee_indicative", ex.rentalFeeIndicative());
+
+      // ── Social & online ─────────────────────────────────────────────────────
+      addItem(items, "social", "instagram_handle", ex.instagramHandle());
+      addItem(items, "ratings", "google_rating", ex.googleRating());
+      addItem(items, "ratings", "google_review_count", ex.googleReviewCount());
     }
     try {
       final var root = jsonMapper.createObjectNode();
@@ -193,6 +226,24 @@ class VenueExtractionContext {
     }
   }
 
+  /**
+   * Splits a comma-separated amenities string into a list for the string_array spec field.
+   * Returns null when blank so {@code addItem} skips it.
+   */
+  private static List<String> splitAmenities(final String amenities) {
+    if (amenities == null || amenities.isBlank()) {
+      return null;
+    }
+    final List<String> result = new ArrayList<>();
+    for (final String part : amenities.split(",")) {
+      final String trimmed = part.strip();
+      if (!trimmed.isEmpty()) {
+        result.add(trimmed);
+      }
+    }
+    return result.isEmpty() ? null : result;
+  }
+
   private static void addItem(final List<MetadataItem> items,
                               final String group, final String field, final Object value) {
     if (value != null) {
@@ -201,6 +252,42 @@ class VenueExtractionContext {
   }
 
   private record MetadataItem(String group, String field, Object value) {
+  }
+
+  /**
+   * Normalises extracted text and truncates it to {@link DocumentClassifier#TEXT_MAX_CHARS}
+   * characters at a word boundary. Called by extraction strategies before passing text to
+   * {@link DocumentClassifier#classify} to maximise signal density within the context window.
+   *
+   * <p>Normalisation: collapses Tika form-feed page breaks, horizontal whitespace runs, and
+   * excessive blank lines — matching the approach used in
+   * {@code VenueEnrichmentAssistantService} in the catalog service.
+   */
+  static String normaliseAndTruncate(final String text) {
+    if (text == null || text.isBlank()) {
+      return text == null ? "" : text;
+    }
+    final String normalised = text
+        .replaceAll("\\s*\\f\\s*", " ")       // Tika page-break form-feeds
+        .replaceAll("[ \\t]{2,}", " ")         // horizontal whitespace runs
+        .replaceAll("(\\R){3,}", "\n\n")       // 3+ blank lines → paragraph break
+        .strip();
+    return truncateAtWordBoundary(normalised, DocumentClassifier.TEXT_MAX_CHARS);
+  }
+
+  /**
+   * Truncates to {@code max} characters at a word boundary so the model never receives a
+   * split token at the prompt boundary.
+   */
+  private static String truncateAtWordBoundary(final String value, final int max) {
+    if (value.length() <= max) {
+      return value;
+    }
+    int cut = max;
+    while (cut > 0 && !Character.isWhitespace(value.charAt(cut))) {
+      cut--;
+    }
+    return cut > 0 ? value.substring(0, cut) : value.substring(0, max);
   }
 
   static String fileNameBase(final String fileName) {
