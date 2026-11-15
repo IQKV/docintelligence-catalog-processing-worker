@@ -20,11 +20,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -32,15 +35,12 @@ import com.iqkv.docintelligence.catalogprocessingworker.infrastructure.config.Ve
 import com.iqkv.docintelligence.venue.Venue;
 import com.iqkv.docintelligence.venue.VenueAsset;
 import com.iqkv.docintelligence.venue.VenueAssetMapper;
-import com.iqkv.docintelligence.venue.VenueMapper;
-import com.iqkv.docintelligence.venue.VenueTextContentMapper;
 import com.iqkv.foundation.tenancy.TenantContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -53,17 +53,13 @@ class VenueAssetProcessingServiceTest {
   private static final UUID UPLOADED_BY = UUID.fromString("00000000-0000-0000-0000-000000000099");
 
   @Mock
-  private VenueMapper venueMapper;
-  @Mock
   private VenueAssetMapper assetMapper;
-  @Mock
-  private VenueTextContentMapper textContentMapper;
-  @Mock
-  private VenueEmbeddingService embeddingService;
   @Mock
   private VenueExtractionStrategyRouter strategyRouter;
   @Mock
-  private MasterVenueMatchService masterVenueMatchService;
+  private VenueProcessingFilter filterA;
+  @Mock
+  private VenueProcessingFilter filterB;
   @Mock
   private VenueExtractionStrategy strategy;
   @Mock
@@ -74,8 +70,7 @@ class VenueAssetProcessingServiceTest {
   @BeforeEach
   void setUp() {
     service = new VenueAssetProcessingService(
-        venueMapper, assetMapper, textContentMapper, embeddingService, strategyRouter,
-        masterVenueMatchService, rabbitTemplate);
+        assetMapper, strategyRouter, List.of(filterA, filterB), rabbitTemplate);
   }
 
   @AfterEach
@@ -116,7 +111,6 @@ class VenueAssetProcessingServiceTest {
     service.process(TENANT_KEY, assetId);
 
     verify(assetMapper, never()).updateStatus(any(), any(), any());
-    verify(venueMapper, never()).insert(any(Venue.class));
     assertThatThrownBy(TenantContext::getCurrentTenant).isInstanceOf(IllegalStateException.class);
   }
 
@@ -129,14 +123,13 @@ class VenueAssetProcessingServiceTest {
     service.process(TENANT_KEY, assetId);
 
     verify(assetMapper, never()).updateStatus(any(), any(), any());
-    verify(venueMapper, never()).insert(any(Venue.class));
   }
 
   // ── happy path ────────────────────────────────────────────────────────────
 
   @Test
-  @DisplayName("process routes to the strategy, inserts venue, links asset, embeds, notifies")
-  void processFullHappyPath() throws Exception {
+  @DisplayName("process runs all filters in order then notifies on success")
+  void processRunsFiltersInOrderAndNotifies() throws Exception {
     // Arrange
     final UUID assetId = UUID.randomUUID();
     final VenueAsset asset = asset(assetId, null);
@@ -144,20 +137,18 @@ class VenueAssetProcessingServiceTest {
 
     when(assetMapper.findById(assetId)).thenReturn(Optional.of(asset));
     when(strategyRouter.select("application/pdf")).thenReturn(strategy);
-    when(strategy.derive(asset)).thenReturn(new VenueExtractionStrategy.VenueExtractionResult(derived, "raw text from pdf"));
+    when(strategy.derive(asset)).thenReturn(
+        new VenueExtractionStrategy.VenueExtractionResult(derived, "raw text from pdf"));
 
     // Act
     service.process(TENANT_KEY, assetId);
 
-    // Assert
-    verify(assetMapper).updateStatus(assetId, VenueAsset.STATUS_PARSING, null);
-    final ArgumentCaptor<Venue> captor = ArgumentCaptor.forClass(Venue.class);
-    verify(venueMapper).insert(captor.capture());
-    assertThat(captor.getValue().getName()).isEqualTo("Grand Hall");
-    assertThat(captor.getValue().getSource()).isEqualTo("FILE_IMPORT");
+    // Assert — filters run in declaration order
+    final var order = inOrder(filterA, filterB);
+    order.verify(filterA).apply(any(VenueProcessingContext.class));
+    order.verify(filterB).apply(any(VenueProcessingContext.class));
 
-    verify(assetMapper).linkVenue(assetId, derived.getId());
-    verify(embeddingService).embed(derived);
+    verify(assetMapper).updateStatus(assetId, VenueAsset.STATUS_PARSING, null);
     verify(rabbitTemplate).convertAndSend(
         eq(VenueAssetMessagingConfig.EVENTS_EXCHANGE),
         eq(VenueAssetMessagingConfig.ROUTING_NOTIFICATION_IAM_PUSH),
@@ -165,7 +156,57 @@ class VenueAssetProcessingServiceTest {
     assertThatThrownBy(TenantContext::getCurrentTenant).isInstanceOf(IllegalStateException.class);
   }
 
+  @Test
+  @DisplayName("process passes the correct context to each filter")
+  void processPassesCorrectContext() throws Exception {
+    // Arrange
+    final UUID assetId = UUID.randomUUID();
+    final VenueAsset asset = asset(assetId, null);
+    final Venue derived = venueFor("Grand Hall");
+    final String rawText = "raw text from pdf";
+
+    when(assetMapper.findById(assetId)).thenReturn(Optional.of(asset));
+    when(strategyRouter.select("application/pdf")).thenReturn(strategy);
+    when(strategy.derive(asset)).thenReturn(
+        new VenueExtractionStrategy.VenueExtractionResult(derived, rawText));
+
+    // Act
+    service.process(TENANT_KEY, assetId);
+
+    // Assert — capture what filterA received
+    final var captor = org.mockito.ArgumentCaptor.forClass(VenueProcessingContext.class);
+    verify(filterA).apply(captor.capture());
+    final VenueProcessingContext ctx = captor.getValue();
+    assertThat(ctx.asset()).isSameAs(asset);
+    assertThat(ctx.venue()).isSameAs(derived);
+    assertThat(ctx.rawText()).isEqualTo(rawText);
+  }
+
   // ── failure path ──────────────────────────────────────────────────────────
+
+  @Test
+  @DisplayName("process marks FAILED and rethrows when a filter throws")
+  void processMarksFailedWhenFilterThrows() throws Exception {
+    final UUID assetId = UUID.randomUUID();
+    final VenueAsset asset = asset(assetId, null);
+    final Venue derived = venueFor("Grand Hall");
+
+    when(assetMapper.findById(assetId)).thenReturn(Optional.of(asset));
+    when(strategyRouter.select("application/pdf")).thenReturn(strategy);
+    when(strategy.derive(asset)).thenReturn(
+        new VenueExtractionStrategy.VenueExtractionResult(derived, null));
+    doThrow(new RuntimeException("minio down")).when(filterA).apply(any());
+
+    assertThatThrownBy(() -> service.process(TENANT_KEY, assetId))
+        .isInstanceOf(IllegalStateException.class);
+
+    verify(assetMapper).updateStatus(assetId, VenueAsset.STATUS_FAILED, "minio down");
+    verify(rabbitTemplate).convertAndSend(
+        eq(VenueAssetMessagingConfig.EVENTS_EXCHANGE),
+        eq(VenueAssetMessagingConfig.ROUTING_NOTIFICATION_IAM_PUSH),
+        any(VenueImportNotificationEvent.class));
+    assertThatThrownBy(TenantContext::getCurrentTenant).isInstanceOf(IllegalStateException.class);
+  }
 
   @Test
   @DisplayName("process marks FAILED and rethrows when the strategy throws")
@@ -181,7 +222,6 @@ class VenueAssetProcessingServiceTest {
         .isInstanceOf(IllegalStateException.class);
 
     verify(assetMapper).updateStatus(assetId, VenueAsset.STATUS_FAILED, "minio down");
-    verify(venueMapper, never()).insert(any(Venue.class));
     verify(rabbitTemplate).convertAndSend(
         eq(VenueAssetMessagingConfig.EVENTS_EXCHANGE),
         eq(VenueAssetMessagingConfig.ROUTING_NOTIFICATION_IAM_PUSH),

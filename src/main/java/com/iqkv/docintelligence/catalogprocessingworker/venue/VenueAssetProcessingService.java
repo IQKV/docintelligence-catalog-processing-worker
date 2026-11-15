@@ -16,17 +16,14 @@
 
 package com.iqkv.docintelligence.catalogprocessingworker.venue;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 import com.iqkv.docintelligence.catalogprocessingworker.infrastructure.config.VenueAssetMessagingConfig;
-import com.iqkv.docintelligence.venue.Venue;
 import com.iqkv.docintelligence.venue.VenueAsset;
 import com.iqkv.docintelligence.venue.VenueAssetMapper;
-import com.iqkv.docintelligence.venue.VenueMapper;
-import com.iqkv.docintelligence.venue.VenueTextContent;
-import com.iqkv.docintelligence.venue.VenueTextContentMapper;
 import com.iqkv.foundation.tenancy.TenantContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,25 +36,23 @@ import org.springframework.stereotype.Service;
  *
  * <p>This service owns the high-level flow: load the asset, guard against double-processing,
  * select and invoke the appropriate {@link VenueExtractionStrategy} via
- * {@link VenueExtractionStrategyRouter}, persist the derived venue, embed it, and notify the
- * uploader. All extraction logic (download, text parsing, LLM classification, metadata
- * building) lives in the strategy implementations, keeping this class as a thin coordinator.
+ * {@link VenueExtractionStrategyRouter}, then run the extracted venue through the ordered
+ * {@link VenueProcessingFilter} chain, and notify the uploader. All extraction logic lives in
+ * the strategy implementations; each post-extraction step lives in its own filter.
  *
  * <p>Processing steps:
  * <ol>
  *   <li>Set tenant context — {@code MyBatisSchemaInterceptor} routes to {@code t_{tenantKey}}</li>
  *   <li>Load the asset; skip when not found or already linked to a venue</li>
  *   <li>Transition status {@code UPLOADED → PARSING}</li>
- *   <li>Select the extraction strategy by content-type and derive the {@link Venue}</li>
- *   <li>Match the venue against the master catalog and back-fill blank fields via
- *       {@link MasterVenueMatchService}</li>
- *   <li>Insert the venue and link the asset (status → {@code EXTRACTED})</li>
- *   <li>When the strategy produced raw text, insert a linked {@code VenueTextContent} row and embed it</li>
- *   <li>Trigger embedding via {@link VenueEmbeddingService}</li>
+ *   <li>Select the extraction strategy by content-type and derive the {@link com.iqkv.docintelligence.venue.Venue}</li>
+ *   <li>Run the {@link VenueProcessingFilter} chain (ordered by {@code @Order}):
+ *       {@link MasterVenueMatchFilter} → {@link VenuePersistFilter} →
+ *       {@link VenueEmbedFilter} → {@link TextContentPersistFilter}</li>
  *   <li>Publish a WebSocket push notification to the uploader</li>
  * </ol>
  *
- * <p>Any failure in steps 4–7 marks the asset {@code FAILED} with the exception message,
+ * <p>Any failure in steps 4–5 marks the asset {@code FAILED} with the exception message,
  * publishes a failure notification, and rethrows as {@code IllegalStateException} so the
  * listener's bounded retry and dead-letter policy apply.
  */
@@ -66,30 +61,21 @@ class VenueAssetProcessingService {
 
   private static final Logger log = LoggerFactory.getLogger(VenueAssetProcessingService.class);
 
-  private final VenueMapper venueMapper;
   private final VenueAssetMapper assetMapper;
-  private final VenueTextContentMapper textContentMapper;
-  private final VenueEmbeddingService embeddingService;
   private final VenueExtractionStrategyRouter strategyRouter;
-  private final MasterVenueMatchService masterVenueMatchService;
+  private final List<VenueProcessingFilter> filters;
   /**
    * Null when messaging is disabled — notification publish is best-effort and skipped when absent.
    */
   private final RabbitTemplate rabbitTemplate;
 
-  VenueAssetProcessingService(final VenueMapper venueMapper,
-                              final VenueAssetMapper assetMapper,
-                              final VenueTextContentMapper textContentMapper,
-                              final VenueEmbeddingService embeddingService,
+  VenueAssetProcessingService(final VenueAssetMapper assetMapper,
                               final VenueExtractionStrategyRouter strategyRouter,
-                              final MasterVenueMatchService masterVenueMatchService,
+                              final List<VenueProcessingFilter> filters,
                               @Autowired(required = false) final RabbitTemplate rabbitTemplate) {
-    this.venueMapper = venueMapper;
     this.assetMapper = assetMapper;
-    this.textContentMapper = textContentMapper;
-    this.embeddingService = embeddingService;
     this.strategyRouter = strategyRouter;
-    this.masterVenueMatchService = masterVenueMatchService;
+    this.filters = filters;
     this.rabbitTemplate = rabbitTemplate;
   }
 
@@ -124,18 +110,14 @@ class VenueAssetProcessingService {
             assetId, tenantKey, asset.getContentType(), asset.getFileName(),
             strategy.getClass().getSimpleName());
         final VenueExtractionStrategy.VenueExtractionResult result = strategy.derive(asset);
-        final Venue venue = result.venue();
-        // Back-fill blank fields from the master catalog before persisting, so the embedding
-        // (built from name, address, city and metadata) sees the enriched values.
-        masterVenueMatchService.match(venue);
-        venueMapper.insert(venue);
-        assetMapper.linkVenue(assetId, venue.getId());
-        embeddingService.embed(venue);
-        persistTextContent(result.rawText(), venue.getId(), assetId);
+        final var ctx = new VenueProcessingContext(asset, result.venue(), result.rawText());
+        for (final VenueProcessingFilter filter : filters) {
+          filter.apply(ctx);
+        }
         publishNotification(asset.getUploadedBy(), "VENUE_IMPORT_EXTRACTED",
-            Map.of("assetId", assetId.toString(), "venueId", venue.getId().toString()));
+            Map.of("assetId", assetId.toString(), "venueId", result.venue().getId().toString()));
         log.info("venue {} created from asset {} (tenant {}) via {}",
-            venue.getId(), assetId, tenantKey, strategy.getClass().getSimpleName());
+            result.venue().getId(), assetId, tenantKey, strategy.getClass().getSimpleName());
       } catch (final Exception ex) {
         final String reason = ex.getMessage() != null ? ex.getMessage() : ex.getClass().getSimpleName();
         log.error("failed to process venue asset {} (tenant {}, file={}): {}",
@@ -168,36 +150,6 @@ class VenueAssetProcessingService {
           new VenueImportNotificationEvent(targetUserId, title, message, severity, type, payload));
     } catch (final Exception ex) {
       log.warn("failed to publish {} notification for user {}: {}", type, targetUserId, ex.getMessage());
-    }
-  }
-
-  /**
-   * Inserts a {@link VenueTextContent} row linked to the just-created venue and embeds it.
-   * Skipped when {@code rawText} is {@code null} or blank (e.g. image assets). Failures are
-   * logged and swallowed — a missing text-content row never fails the pipeline.
-   */
-  private void persistTextContent(final String rawText, final UUID venueId, final UUID sourceAssetId) {
-    if (rawText == null || rawText.isBlank()) {
-      return;
-    }
-    try {
-      final VenueTextContent tc = new VenueTextContent();
-      tc.setId(UUID.randomUUID());
-      tc.setVenueId(venueId);
-      tc.setSourceAssetId(sourceAssetId);
-      tc.setContent(rawText);
-      textContentMapper.insert(tc);
-      try {
-        final float[] vector = embeddingService.embedText(rawText);
-        textContentMapper.updateEmbedding(tc.getId(), vector);
-        log.debug("embedded VenueTextContent {} for venue {}", tc.getId(), venueId);
-      } catch (final RuntimeException ex) {
-        log.warn("VenueTextContent embedding skipped for venue {} — Ollama unavailable: {}",
-            venueId, ex.getMessage());
-      }
-      log.info("VenueTextContent {} created for venue {} ({} chars)", tc.getId(), venueId, rawText.length());
-    } catch (final RuntimeException ex) {
-      log.warn("failed to persist VenueTextContent for venue {}: {}", venueId, ex.getMessage());
     }
   }
 }
