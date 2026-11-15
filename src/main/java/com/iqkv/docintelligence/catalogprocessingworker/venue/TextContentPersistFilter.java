@@ -58,6 +58,7 @@ class TextContentPersistFilter implements VenueProcessingFilter {
       tc.setId(UUID.randomUUID());
       tc.setVenueId(venueId);
       tc.setSourceAssetId(assetId);
+      tc.setLabel(ctx.asset().getFileName());
       tc.setContent(rawText);
       textContentMapper.insert(tc);
       try {
