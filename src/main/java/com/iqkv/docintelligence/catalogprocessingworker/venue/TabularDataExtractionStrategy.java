@@ -16,6 +16,7 @@
 
 package com.iqkv.docintelligence.catalogprocessingworker.venue;
 
+import java.util.Optional;
 import java.util.Set;
 
 import com.iqkv.docintelligence.venue.Venue;
@@ -67,8 +68,7 @@ class TabularDataExtractionStrategy implements VenueExtractionStrategy {
 
   @Override
   public VenueExtractionResult derive(final VenueAsset asset) throws Exception {
-    final byte[] bytes = ctx.download(asset.getS3Key());
-    final String text = ctx.extractText(bytes);
+    final String text = extractText(asset).orElse("");
     final VenueExtraction extraction = classifier.classify(
         VenueExtractionContext.normaliseAndTruncate(text), asset.getFileName(), TABULAR_HINT);
 
@@ -84,5 +84,12 @@ class TabularDataExtractionStrategy implements VenueExtractionStrategy {
     venue.setConfidence(VenueExtractionContext.resolveConfidence(extraction));
     venue.setMetadata(ctx.buildMetadata(extraction));
     return new VenueExtractionResult(venue, text.isBlank() ? null : text);
+  }
+
+  @Override
+  public Optional<String> extractText(final VenueAsset asset) throws Exception {
+    final byte[] bytes = ctx.download(asset.getS3Key());
+    final String text = ctx.extractText(bytes);
+    return text.isBlank() ? Optional.empty() : Optional.of(text);
   }
 }

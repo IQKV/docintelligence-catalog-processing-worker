@@ -16,62 +16,28 @@
 
 package com.iqkv.docintelligence.catalogprocessingworker.venue;
 
-import java.util.UUID;
-
-import com.iqkv.docintelligence.venue.VenueTextContent;
-import com.iqkv.docintelligence.venue.VenueTextContentMapper;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 /**
- * Inserts a {@link VenueTextContent} row and embeds it when the extraction produced raw text.
- * Skipped silently for image assets where {@code rawText} is {@code null} or blank.
- * Any failure is logged and swallowed — a missing text-content row never fails the pipeline.
+ * Inserts a {@link com.iqkv.docintelligence.venue.VenueTextContent} row and embeds it when the
+ * extraction produced raw text. Skipped for image assets where {@code rawText} is {@code null} or
+ * blank. Delegates the write to {@link VenueTextContentPersister}; a failure there is logged and
+ * swallowed — a missing text-content row never fails the pipeline.
  */
 @Component
 @Order(40)
 class TextContentPersistFilter implements VenueProcessingFilter {
 
-  private static final Logger log = LoggerFactory.getLogger(TextContentPersistFilter.class);
+  private final VenueTextContentPersister persister;
 
-  private final VenueTextContentMapper textContentMapper;
-  private final VenueEmbeddingService embeddingService;
-
-  TextContentPersistFilter(final VenueTextContentMapper textContentMapper,
-                           final VenueEmbeddingService embeddingService) {
-    this.textContentMapper = textContentMapper;
-    this.embeddingService = embeddingService;
+  TextContentPersistFilter(final VenueTextContentPersister persister) {
+    this.persister = persister;
   }
 
   @Override
   public void apply(final VenueProcessingContext ctx) {
-    final String rawText = ctx.rawText();
-    if (rawText == null || rawText.isBlank()) {
-      return;
-    }
-    final UUID venueId = ctx.venue().getId();
-    final UUID assetId = ctx.asset().getId();
-    try {
-      final VenueTextContent tc = new VenueTextContent();
-      tc.setId(UUID.randomUUID());
-      tc.setVenueId(venueId);
-      tc.setSourceAssetId(assetId);
-      tc.setLabel(ctx.asset().getFileName());
-      tc.setContent(rawText);
-      textContentMapper.insert(tc);
-      try {
-        final float[] vector = embeddingService.embedText(rawText);
-        textContentMapper.updateEmbedding(tc.getId(), vector);
-        log.debug("embedded VenueTextContent {} for venue {}", tc.getId(), venueId);
-      } catch (final RuntimeException ex) {
-        log.warn("VenueTextContent embedding skipped for venue {} — Ollama unavailable: {}",
-            venueId, ex.getMessage());
-      }
-      log.info("VenueTextContent {} created for venue {} ({} chars)", tc.getId(), venueId, rawText.length());
-    } catch (final RuntimeException ex) {
-      log.warn("failed to persist VenueTextContent for venue {}: {}", venueId, ex.getMessage());
-    }
+    persister.persistIfAbsent(ctx.venue().getId(), ctx.asset().getId(),
+        ctx.asset().getFileName(), ctx.rawText());
   }
 }

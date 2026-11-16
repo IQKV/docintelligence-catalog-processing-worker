@@ -63,6 +63,8 @@ class VenueAssetProcessingServiceTest {
   @Mock
   private VenueExtractionStrategy strategy;
   @Mock
+  private VenueTextContentPersister textContentPersister;
+  @Mock
   private RabbitTemplate rabbitTemplate;
 
   private VenueAssetProcessingService service;
@@ -70,7 +72,7 @@ class VenueAssetProcessingServiceTest {
   @BeforeEach
   void setUp() {
     service = new VenueAssetProcessingService(
-        assetMapper, strategyRouter, List.of(filterA, filterB), rabbitTemplate);
+        assetMapper, strategyRouter, List.of(filterA, filterB), textContentPersister, rabbitTemplate);
   }
 
   @AfterEach
@@ -115,13 +117,63 @@ class VenueAssetProcessingServiceTest {
   }
 
   @Test
-  @DisplayName("process skips an asset that is already linked to a venue")
-  void processSkipsAlreadyLinkedAsset() {
+  @DisplayName("process mines text from an already-linked text asset and leaves its status untouched")
+  void processExtractsTextForLinkedAsset() throws Exception {
+    // Arrange
     final UUID assetId = UUID.randomUUID();
-    when(assetMapper.findById(assetId)).thenReturn(Optional.of(asset(assetId, UUID.randomUUID())));
+    final UUID venueId = UUID.randomUUID();
+    final VenueAsset asset = asset(assetId, venueId);
 
+    when(assetMapper.findById(assetId)).thenReturn(Optional.of(asset));
+    when(strategyRouter.select("application/pdf")).thenReturn(strategy);
+    when(strategy.extractText(asset)).thenReturn(Optional.of("raw text from pdf"));
+
+    // Act
     service.process(TENANT_KEY, assetId);
 
+    // Assert — text saved against the existing venue, no venue derivation, no status change
+    verify(textContentPersister).persistIfAbsent(venueId, assetId, "asset.pdf", "raw text from pdf");
+    verify(strategy, never()).derive(any());
+    verify(assetMapper, never()).updateStatus(any(), any(), any());
+    verify(rabbitTemplate, never()).convertAndSend(any(), any(), any(Object.class));
+    assertThatThrownBy(TenantContext::getCurrentTenant).isInstanceOf(IllegalStateException.class);
+  }
+
+  @Test
+  @DisplayName("process does not persist text for a linked asset that yields no text")
+  void processLinkedAssetWithoutTextSkipsPersist() throws Exception {
+    // Arrange
+    final UUID assetId = UUID.randomUUID();
+    final VenueAsset asset = asset(assetId, UUID.randomUUID());
+
+    when(assetMapper.findById(assetId)).thenReturn(Optional.of(asset));
+    when(strategyRouter.select("application/pdf")).thenReturn(strategy);
+    when(strategy.extractText(asset)).thenReturn(Optional.empty());
+
+    // Act
+    service.process(TENANT_KEY, assetId);
+
+    // Assert
+    verify(textContentPersister, never()).persistIfAbsent(any(), any(), any(), any());
+    verify(assetMapper, never()).updateStatus(any(), any(), any());
+  }
+
+  @Test
+  @DisplayName("process swallows a text extraction failure for a linked asset")
+  void processLinkedAssetSwallowsExtractionFailure() throws Exception {
+    // Arrange
+    final UUID assetId = UUID.randomUUID();
+    final VenueAsset asset = asset(assetId, UUID.randomUUID());
+
+    when(assetMapper.findById(assetId)).thenReturn(Optional.of(asset));
+    when(strategyRouter.select("application/pdf")).thenReturn(strategy);
+    when(strategy.extractText(asset)).thenThrow(new RuntimeException("minio down"));
+
+    // Act
+    service.process(TENANT_KEY, assetId);
+
+    // Assert — best-effort: no status change, no rethrow
+    verify(textContentPersister, never()).persistIfAbsent(any(), any(), any(), any());
     verify(assetMapper, never()).updateStatus(any(), any(), any());
   }
 

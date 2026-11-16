@@ -16,6 +16,8 @@
 
 package com.iqkv.docintelligence.catalogprocessingworker.venue;
 
+import java.util.Optional;
+
 import com.iqkv.docintelligence.venue.Venue;
 import com.iqkv.docintelligence.venue.VenueAsset;
 
@@ -50,6 +52,22 @@ interface VenueExtractionStrategy {
    * @throws Exception when the file cannot be read, parsed, or classified fatally
    */
   VenueExtractionResult derive(VenueAsset asset) throws Exception;
+
+  /**
+   * Extracts the raw text of the asset without deriving a venue — the text-only counterpart of
+   * {@link #derive}, used when the asset already belongs to a venue and only its searchable text
+   * is wanted (no LLM inference, no venue fields).
+   *
+   * <p>The default returns {@link Optional#empty()}: a strategy that produces no text
+   * (images, unknown types) contributes nothing.
+   *
+   * @param asset the confirmed upload asset — provides s3Key, fileName, contentType
+   * @return the full extracted text, or empty when the strategy cannot extract any
+   * @throws Exception when the file cannot be read or parsed
+   */
+  default Optional<String> extractText(VenueAsset asset) throws Exception {
+    return Optional.empty();
+  }
 
   /**
    * Pairs the derived {@link Venue} with the raw text that produced it.

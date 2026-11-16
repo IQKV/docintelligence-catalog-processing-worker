@@ -43,7 +43,8 @@ import org.springframework.stereotype.Service;
  * <p>Processing steps:
  * <ol>
  *   <li>Set tenant context — {@code MyBatisSchemaInterceptor} routes to {@code t_{tenantKey}}</li>
- *   <li>Load the asset; skip when not found or already linked to a venue</li>
+ *   <li>Load the asset; skip when not found. An asset already linked to a venue takes the
+ *       text-only path described below</li>
  *   <li>Transition status {@code UPLOADED → PARSING}</li>
  *   <li>Select the extraction strategy by content-type and derive the {@link com.iqkv.docintelligence.venue.Venue}</li>
  *   <li>Run the {@link VenueProcessingFilter} chain (ordered by {@code @Order}):
@@ -55,6 +56,12 @@ import org.springframework.stereotype.Service;
  * <p>Any failure in steps 4–5 marks the asset {@code FAILED} with the exception message,
  * publishes a failure notification, and rethrows as {@code IllegalStateException} so the
  * listener's bounded retry and dead-letter policy apply.
+ *
+ * <p>An asset that already belongs to a venue (an attachment on an existing venue) takes a
+ * shorter path: no venue is derived, but a text-typed document (PDF, Word, plain text, Markdown,
+ * tabular) is mined for text and saved as a {@link com.iqkv.docintelligence.venue.VenueTextContent}
+ * row linked to that venue. The asset row and its status are left untouched and the extraction is
+ * best-effort — the attachment stays valid even when its text cannot be read.
  */
 @Service
 class VenueAssetProcessingService {
@@ -64,6 +71,7 @@ class VenueAssetProcessingService {
   private final VenueAssetMapper assetMapper;
   private final VenueExtractionStrategyRouter strategyRouter;
   private final List<VenueProcessingFilter> filters;
+  private final VenueTextContentPersister textContentPersister;
   /**
    * Null when messaging is disabled — notification publish is best-effort and skipped when absent.
    */
@@ -72,10 +80,12 @@ class VenueAssetProcessingService {
   VenueAssetProcessingService(final VenueAssetMapper assetMapper,
                               final VenueExtractionStrategyRouter strategyRouter,
                               final List<VenueProcessingFilter> filters,
+                              final VenueTextContentPersister textContentPersister,
                               @Autowired(required = false) final RabbitTemplate rabbitTemplate) {
     this.assetMapper = assetMapper;
     this.strategyRouter = strategyRouter;
     this.filters = filters;
+    this.textContentPersister = textContentPersister;
     this.rabbitTemplate = rabbitTemplate;
   }
 
@@ -98,8 +108,9 @@ class VenueAssetProcessingService {
       }
       final VenueAsset asset = found.get();
       if (asset.getVenueId() != null) {
-        // Already linked (e.g. a photo attached to an existing venue): nothing to derive.
-        log.info("venue asset {} already belongs to venue {} — skipping", assetId, asset.getVenueId());
+        // Already linked (e.g. a document attached to an existing venue): no venue to derive,
+        // but mine the file for text and save it as a VenueTextContent row.
+        extractTextForLinkedVenue(tenantKey, asset);
         return;
       }
 
@@ -129,6 +140,33 @@ class VenueAssetProcessingService {
       }
     } finally {
       TenantContext.clear();
+    }
+  }
+
+  /**
+   * Best-effort text mining for an asset that already belongs to a venue.
+   *
+   * <p>No venue is derived and the asset row and its status are left untouched — the attachment
+   * stays valid even when its text cannot be read. A text-typed document (PDF, Word, plain text,
+   * Markdown, tabular) is saved as a {@link com.iqkv.docintelligence.venue.VenueTextContent} row
+   * linked to the asset's venue; idempotency is handled by the persister.
+   */
+  private void extractTextForLinkedVenue(final String tenantKey, final VenueAsset asset) {
+    final UUID assetId = asset.getId();
+    try {
+      final VenueExtractionStrategy strategy = strategyRouter.select(asset.getContentType());
+      final Optional<String> text = strategy.extractText(asset);
+      if (text.isEmpty()) {
+        log.info("no text extracted from venue asset {} (tenant {}, contentType={}) — skipping",
+            assetId, tenantKey, asset.getContentType());
+        return;
+      }
+      log.info("extracting text from venue asset {} (tenant {}, file={}) via {}",
+          assetId, tenantKey, asset.getFileName(), strategy.getClass().getSimpleName());
+      textContentPersister.persistIfAbsent(asset.getVenueId(), assetId, asset.getFileName(), text.get());
+    } catch (final Exception ex) {
+      log.warn("text extraction failed for venue asset {} (tenant {}, file={}): {}",
+          assetId, tenantKey, asset.getFileName(), ex.getMessage());
     }
   }
 

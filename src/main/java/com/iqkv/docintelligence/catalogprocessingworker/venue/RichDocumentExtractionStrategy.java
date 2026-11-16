@@ -16,6 +16,7 @@
 
 package com.iqkv.docintelligence.catalogprocessingworker.venue;
 
+import java.util.Optional;
 import java.util.Set;
 
 import com.iqkv.docintelligence.venue.Venue;
@@ -23,7 +24,7 @@ import com.iqkv.docintelligence.venue.VenueAsset;
 import org.springframework.stereotype.Component;
 
 /**
- * Extraction strategy for rich text documents: PDF, Word (DOC/DOCX), and plain text.
+ * Extraction strategy for rich text documents: PDF, Word (DOC/DOCX), plain text, and Markdown.
  *
  * <p>Downloads the file, extracts full prose text with Apache Tika, and runs the full
  * {@link DocumentClassifier} pipeline to populate all venue fields. This strategy produces
@@ -37,7 +38,8 @@ class RichDocumentExtractionStrategy implements VenueExtractionStrategy {
       "application/pdf",
       "application/msword",
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "text/plain"
+      "text/plain",
+      "text/markdown"
   );
 
   private final VenueExtractionContext ctx;
@@ -56,8 +58,7 @@ class RichDocumentExtractionStrategy implements VenueExtractionStrategy {
 
   @Override
   public VenueExtractionResult derive(final VenueAsset asset) throws Exception {
-    final byte[] bytes = ctx.download(asset.getS3Key());
-    final String text = ctx.extractText(bytes);
+    final String text = extractText(asset).orElse("");
     final VenueExtraction extraction = classifier.classify(
         VenueExtractionContext.normaliseAndTruncate(text), asset.getFileName());
 
@@ -73,5 +74,12 @@ class RichDocumentExtractionStrategy implements VenueExtractionStrategy {
     venue.setConfidence(VenueExtractionContext.resolveConfidence(extraction));
     venue.setMetadata(ctx.buildMetadata(extraction));
     return new VenueExtractionResult(venue, text.isBlank() ? null : text);
+  }
+
+  @Override
+  public Optional<String> extractText(final VenueAsset asset) throws Exception {
+    final byte[] bytes = ctx.download(asset.getS3Key());
+    final String text = ctx.extractText(bytes);
+    return text.isBlank() ? Optional.empty() : Optional.of(text);
   }
 }
