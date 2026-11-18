@@ -18,6 +18,7 @@ package com.iqkv.docintelligence.catalogprocessingworker.venue;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -26,18 +27,22 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 /**
- * Best-effort web research filter that searches DuckDuckGo for a Cvent listing of the
+ * Best-effort web research filter that searches DuckDuckGo Lite for a Cvent listing of the
  * newly derived venue, fetches the Cvent page when found, and stores the full page text as
  * a {@link com.iqkv.docintelligence.venue.VenueTextContent} row attached to the venue.
  *
  * <p>Steps:
  * <ol>
- *   <li>Search {@code https://duckduckgo.com/?q=cvent+{name}&t=h_&ia=web} for the first
- *       result whose href contains {@code cvent.com}.</li>
+ *   <li>POST to {@code https://duckduckgo.com/lite/} with {@code q=cvent+{name}} — the Lite
+ *       endpoint returns plain HTML with no JS, reliably accessible from servers.</li>
+ *   <li>Parse the first result anchor whose href contains {@code cvent.com}.</li>
  *   <li>Fetch the Cvent page and strip HTML tags to produce plain prose text.</li>
  *   <li>Wrap the prose in Markdown with a heading and source attribution line.</li>
  *   <li>Persist via {@link VenueTextContentPersister#persistIfAbsent}, keyed on a
@@ -60,16 +65,16 @@ class PrivateWebResearchSourceFileEnrichFilter implements VenueProcessingFilter 
 
   private static final Logger log = LoggerFactory.getLogger(PrivateWebResearchSourceFileEnrichFilter.class);
 
-  private static final String DDG_SEARCH_URL = "https://duckduckgo.com/?q=";
-  private static final String DDG_SUFFIX = "&t=h_&ia=web";
+  private static final String DDG_LITE_URL = "https://duckduckgo.com/lite/";
   private static final String CVENT_HOST = "cvent.com";
+  private static final int TIMEOUT_MS = 30_000;
 
-  // Mimics a real browser to get the full HTML result page.
+  // Mimics a real browser to avoid bot-detection rejections.
   private static final String USER_AGENT =
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
           + "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
-  // Matches the first result anchor on a DuckDuckGo HTML results page.
+  // Matches result anchors in the DuckDuckGo Lite HTML table: <a class="result-link" href="...">
   private static final Pattern DDG_RESULT_HREF =
       Pattern.compile("<a[^>]+href=\"(https?://[^\"]*" + CVENT_HOST + "[^\"]*)\"");
 
@@ -80,8 +85,6 @@ class PrivateWebResearchSourceFileEnrichFilter implements VenueProcessingFilter 
   private static final Pattern WHITESPACE_RUN = Pattern.compile("\\s{2,}");
 
   // Deterministic namespace UUID used to derive a synthetic sourceAssetId per venue+source.
-  private static final UUID SYNTHETIC_NAMESPACE =
-      UUID.fromString("b7e2c1a0-4f3d-4e8b-9c6a-1d2e3f4a5b6c");
 
   private final VenueTextContentPersister persister;
   private final RestClient restClient;
@@ -89,7 +92,7 @@ class PrivateWebResearchSourceFileEnrichFilter implements VenueProcessingFilter 
   @Autowired
   PrivateWebResearchSourceFileEnrichFilter(final VenueTextContentPersister persister) {
     this.persister = persister;
-    this.restClient = RestClient.create();
+    this.restClient = buildRestClient();
   }
 
   // Test-only constructor — allows injecting a mock RestClient.
@@ -97,6 +100,13 @@ class PrivateWebResearchSourceFileEnrichFilter implements VenueProcessingFilter 
                                            final RestClient restClient) {
     this.persister = persister;
     this.restClient = restClient;
+  }
+
+  private static RestClient buildRestClient() {
+    final var factory = new SimpleClientHttpRequestFactory();
+    factory.setConnectTimeout(Duration.ofMillis(TIMEOUT_MS));
+    factory.setReadTimeout(Duration.ofMillis(TIMEOUT_MS));
+    return RestClient.builder().requestFactory(factory).build();
   }
 
   @Override
@@ -131,8 +141,14 @@ class PrivateWebResearchSourceFileEnrichFilter implements VenueProcessingFilter 
   }
 
   private String findCventUrl(final String venueName) {
-    final String query = URLEncoder.encode("cvent " + venueName, StandardCharsets.UTF_8);
-    final String html = fetchPage(DDG_SEARCH_URL + query + DDG_SUFFIX);
+    final String body = "q=" + URLEncoder.encode("cvent " + venueName, StandardCharsets.UTF_8);
+    final String html = restClient.post()
+        .uri(DDG_LITE_URL)
+        .header(HttpHeaders.USER_AGENT, USER_AGENT)
+        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+        .body(body)
+        .retrieve()
+        .body(String.class);
     if (html == null || html.isBlank()) {
       return null;
     }
@@ -143,7 +159,7 @@ class PrivateWebResearchSourceFileEnrichFilter implements VenueProcessingFilter 
   private String fetchPage(final String url) {
     return restClient.get()
         .uri(url)
-        .header("User-Agent", USER_AGENT)
+        .header(HttpHeaders.USER_AGENT, USER_AGENT)
         .retrieve()
         .body(String.class);
   }
