@@ -76,6 +76,9 @@ class GoogleSearchEnrichFilter implements VenueProcessingFilter {
 
   @Override
   public void apply(final VenueProcessingContext ctx) {
+    if (!ctx.newVenue()) {
+      return;
+    }
     final Venue venue = ctx.venue();
     if (venue.getName() == null || venue.getName().isBlank()) {
       return;

@@ -22,9 +22,13 @@ import com.iqkv.docintelligence.venue.VenueAsset;
 /**
  * Shared state passed through the {@link VenueProcessingFilter} chain.
  *
- * @param asset   the asset being processed
- * @param venue   the venue derived by the extraction strategy
- * @param rawText the raw text extracted from the asset, or {@code null} when unavailable
+ * @param asset    the asset being processed
+ * @param venue    the venue derived by the extraction strategy
+ * @param rawText  the raw text extracted from the asset, or {@code null} when unavailable
+ * @param newVenue {@code true} when the venue is being created for the first time from this
+ *                 asset; {@code false} when the asset is an attachment on an already-existing
+ *                 venue. Filters that only make sense at venue-creation time (e.g. web
+ *                 enrichment) should short-circuit when this is {@code false}.
  */
-record VenueProcessingContext(VenueAsset asset, Venue venue, String rawText) {
+record VenueProcessingContext(VenueAsset asset, Venue venue, String rawText, boolean newVenue) {
 }

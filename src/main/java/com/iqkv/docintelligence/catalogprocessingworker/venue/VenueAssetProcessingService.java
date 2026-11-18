@@ -121,7 +121,7 @@ class VenueAssetProcessingService {
             assetId, tenantKey, asset.getContentType(), asset.getFileName(),
             strategy.getClass().getSimpleName());
         final VenueExtractionStrategy.VenueExtractionResult result = strategy.derive(asset);
-        final var ctx = new VenueProcessingContext(asset, result.venue(), result.rawText());
+        final var ctx = new VenueProcessingContext(asset, result.venue(), result.rawText(), true);
         for (final VenueProcessingFilter filter : filters) {
           filter.apply(ctx);
         }
