@@ -65,7 +65,7 @@ class PrivateWebResearchSourceFileEnrichFilter implements VenueProcessingFilter 
 
   private static final Logger log = LoggerFactory.getLogger(PrivateWebResearchSourceFileEnrichFilter.class);
 
-  private static final String DDG_LITE_URL = "https://duckduckgo.com/lite/";
+  private static final String DDG_LITE_URL = "https://lite.duckduckgo.com/lite/";
   private static final String CVENT_HOST = "cvent.com";
   private static final int TIMEOUT_MS = 30_000;
 
