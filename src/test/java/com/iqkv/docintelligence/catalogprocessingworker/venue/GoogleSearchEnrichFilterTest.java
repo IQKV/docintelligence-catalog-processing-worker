@@ -63,7 +63,7 @@ class GoogleSearchEnrichFilterTest {
   private static VenueProcessingContext ctx(final Venue venue) {
     final VenueAsset asset = new VenueAsset();
     asset.setId(UUID.randomUUID());
-    return new VenueProcessingContext(asset, venue, null);
+    return new VenueProcessingContext(asset, venue, null, true);
   }
 
   private static Venue venue(final String name, final String city) {
