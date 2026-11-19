@@ -103,6 +103,43 @@ class VenueTextContentPersisterTest {
   }
 
   @Test
+  @DisplayName("persistIfAbsent stores [page N] notes for paged content and embeds the annotated text")
+  void persistIfAbsentMarksPageBreaks() {
+    // Arrange — Tika separates PDF pages with a form feed
+    when(textContentMapper.findBySourceAssetId(ASSET_ID)).thenReturn(List.of());
+    when(embeddingService.embedText(any())).thenReturn(new float[] {0.1f});
+
+    // Act
+    final String paged = "Grand Hall seats 500.\fTerrace holds 120.";
+    final boolean created = persister.persistIfAbsent(VENUE_ID, ASSET_ID, "deck.pdf", paged);
+
+    // Assert
+    assertThat(created).isTrue();
+    final ArgumentCaptor<VenueTextContent> captor = ArgumentCaptor.forClass(VenueTextContent.class);
+    verify(textContentMapper).insert(captor.capture());
+    assertThat(captor.getValue().getContent())
+        .isEqualTo("[page 1]\nGrand Hall seats 500.\n\n[page 2]\nTerrace holds 120.");
+    verify(embeddingService).embedText(captor.getValue().getContent());
+  }
+
+  @Test
+  @DisplayName("persistIfAbsent leaves content without page breaks unchanged")
+  void persistIfAbsentLeavesUnpaginatedContentUnchanged() {
+    // Arrange
+    when(textContentMapper.findBySourceAssetId(ASSET_ID)).thenReturn(List.of());
+    when(embeddingService.embedText(any())).thenReturn(new float[] {0.1f});
+
+    // Act
+    final boolean created = persister.persistIfAbsent(VENUE_ID, ASSET_ID, "menu.csv", "Hall,500");
+
+    // Assert
+    assertThat(created).isTrue();
+    final ArgumentCaptor<VenueTextContent> captor = ArgumentCaptor.forClass(VenueTextContent.class);
+    verify(textContentMapper).insert(captor.capture());
+    assertThat(captor.getValue().getContent()).isEqualTo("Hall,500");
+  }
+
+  @Test
   @DisplayName("persistIfAbsent is a no-op when a row already exists for the asset")
   void persistIfAbsentSkipsWhenRowExists() {
     // Arrange

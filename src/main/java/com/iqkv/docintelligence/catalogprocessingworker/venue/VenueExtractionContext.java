@@ -102,6 +102,37 @@ class VenueExtractionContext {
   }
 
   /**
+   * Replaces Tika's form-feed page separators ({@code \f}, emitted between the pages of PDFs and
+   * most office documents) with a readable {@code [page N]} note, so the persisted venue source
+   * text keeps the page each passage came from and a citation can point back to it.
+   *
+   * <p>A format with no page structure — and any text without a form feed — is returned unchanged,
+   * so plain text, Markdown and spreadsheets stay byte-identical. Idempotent: text already carrying
+   * {@code [page N]} notes has no form feed and passes through untouched.
+   *
+   * @param text text straight from {@link #extractText(byte[])}; may be {@code null}
+   * @return the text with {@code [page N]} notes, or the input unchanged when it has no pages
+   */
+  static String markPageBreaks(final String text) {
+    if (text == null || text.isBlank() || text.indexOf('\f') < 0) {
+      return text;
+    }
+    final String[] pages = text.split("\f", -1);
+    final StringBuilder sb = new StringBuilder(text.length() + pages.length * 8);
+    for (int i = 0; i < pages.length; i++) {
+      final String page = pages[i].strip();
+      if (page.isEmpty()) {
+        continue;
+      }
+      if (!sb.isEmpty()) {
+        sb.append("\n\n");
+      }
+      sb.append("[page ").append(i + 1).append("]\n").append(page);
+    }
+    return sb.isEmpty() ? text : sb.toString();
+  }
+
+  /**
    * Builds a minimal {@link Venue} skeleton with only id and source set.
    * Strategies call this then populate further fields.
    */

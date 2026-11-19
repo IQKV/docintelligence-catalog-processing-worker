@@ -32,6 +32,9 @@ import org.springframework.stereotype.Component;
  * <p>Idempotent per source asset: an asset that already has a text-content row is left untouched,
  * so a redelivered event never duplicates the row. Any failure is logged and swallowed — a missing
  * text-content row never fails the pipeline.
+ *
+ * <p>Stored content carries {@code [page N]} notes for paged sources (PDF, office documents) via
+ * {@link VenueExtractionContext#markPageBreaks(String)}, so a later citation can name the page.
  */
 @Component
 class VenueTextContentPersister {
@@ -62,6 +65,7 @@ class VenueTextContentPersister {
     if (content == null || content.isBlank()) {
       return false;
     }
+    final String stored = VenueExtractionContext.markPageBreaks(content);
     try {
       if (!textContentMapper.findBySourceAssetId(assetId).isEmpty()) {
         log.debug("VenueTextContent already exists for asset {} — skipping", assetId);
@@ -72,17 +76,17 @@ class VenueTextContentPersister {
       tc.setVenueId(venueId);
       tc.setSourceAssetId(assetId);
       tc.setLabel(label);
-      tc.setContent(content);
+      tc.setContent(stored);
       textContentMapper.insert(tc);
       try {
-        final float[] vector = embeddingService.embedText(content);
+        final float[] vector = embeddingService.embedText(stored);
         textContentMapper.updateEmbedding(tc.getId(), vector);
         log.debug("embedded VenueTextContent {} for venue {}", tc.getId(), venueId);
       } catch (final RuntimeException ex) {
         log.warn("VenueTextContent embedding skipped for venue {} — Ollama unavailable: {}",
             venueId, ex.getMessage());
       }
-      log.info("VenueTextContent {} created for venue {} ({} chars)", tc.getId(), venueId, content.length());
+      log.info("VenueTextContent {} created for venue {} ({} chars)", tc.getId(), venueId, stored.length());
       return true;
     } catch (final RuntimeException ex) {
       log.warn("failed to persist VenueTextContent for venue {}: {}", venueId, ex.getMessage());
