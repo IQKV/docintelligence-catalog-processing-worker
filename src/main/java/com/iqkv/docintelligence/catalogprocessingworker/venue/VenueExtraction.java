@@ -16,6 +16,8 @@
 
 package com.iqkv.docintelligence.catalogprocessingworker.venue;
 
+import java.util.List;
+
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 /**
@@ -41,6 +43,10 @@ record VenueExtraction(
     Double locationLng,
     Double confidence,
     String description,
+    String category,
+    String country,
+    String positioningLine,
+    List<String> searchTags,
     // Free-text location context not captured by the address (e.g. transport access).
     String locationNotes,
     // Comma-separated amenity tags (e.g. "Rooftop terrace, Built-in bar").
@@ -52,15 +58,16 @@ record VenueExtraction(
     Integer seatedCapacity,
     Integer classroomCapacity,
     Integer conferenceCapacity,
-
-    // ── Venue type — must match one of the 22 spec enum values exactly ────────
-    // e.g. "Bar or lounge", "Rooftop", "Conference centre". Use "Unclassified" when none fits.
-    String venueType,
+    Integer cocktailCapacity,
+    List<RoomArea> rooms,
+    String floorPlanAccess,
 
     // ── Catering ──────────────────────────────────────────────────────────────
     // One of: "In-house catering only", "External catering only",
     // "In-house and external catering both allowed", "Catering not specified".
     String cateringPolicy,
+    String cateringNotes,
+    List<String> cateringFormats,
     Boolean kosherAvailable,
     Boolean halalAvailable,
     Boolean veganAvailable,
@@ -71,6 +78,8 @@ record VenueExtraction(
     Boolean projector,
     Boolean riggingPoints,
     Integer internetBandwidthMbps,
+    String technicalNotes,
+    List<TechnicalSpecification> technicalSpecifications,
 
     // ── Accessibility ─────────────────────────────────────────────────────────
     Boolean adaCompliant,
@@ -101,6 +110,8 @@ record VenueExtraction(
     String currency,
     Double minimumSpend,
     Double rentalFeeIndicative,
+    List<PriceLine> priceLines,
+    String commercialTerms,
 
     // ── Online / social ───────────────────────────────────────────────────────
     // Instagram handle including the @ prefix (e.g. "@venuename").
@@ -108,4 +119,22 @@ record VenueExtraction(
     Double googleRating,
     Integer googleReviewCount
 ) {
+
+  /**
+   * A named room or area and its event capacities.
+   */
+  record RoomArea(String name, Integer seated, Integer standing, String notes) {
+  }
+
+  /**
+   * One label/value pair from a venue's technical specification.
+   */
+  record TechnicalSpecification(String name, String value) {
+  }
+
+  /**
+   * One hire rate and its unit.
+   */
+  record PriceLine(String name, Double amount, String unit) {
+  }
 }

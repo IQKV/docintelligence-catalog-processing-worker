@@ -77,17 +77,7 @@ class DocumentClassifier {
       description    : ONE "About" paragraph — 1–2 sentences, max 300 chars — saying what the
                        venue IS, what it OFFERS and its CHARACTER, in the style of a Google Maps
                        place description. No room detail, prices, or contact info.
-      locationNotes  : Context not captured by the address (e.g. transport access, freight). Max 200 chars.
-      amenities      : Comma-separated amenity tags visible in the document
-                       (e.g. "Rooftop terrace, Built-in bar, Green room").
-
-      maxCapacity    : Largest total headcount for the whole venue. Positive integer.
-      standingCapacity : Standing/cocktail figure when stated.
-      seatedCapacity   : Seated/banquet figure when stated.
-      classroomCapacity : Classroom layout figure when stated.
-      conferenceCapacity : Boardroom/conference layout figure when stated.
-
-      venueType      : EXACTLY one of:
+      category       : EXACTLY one of:
                        Restaurant | Hotel | Bar or lounge | Rooftop | Gallery |
                        Warehouse or industrial space | Studio |
                        Outdoor garden or terrace | Town hall or community centre |
@@ -97,10 +87,28 @@ class DocumentClassifier {
                        Private members club | Nightclub |
                        Historic house or estate | Beach or coastal venue | Unclassified
                        Pick the closest match; use Unclassified when none fits.
+      country        : Country name only, max 100 chars.
+      positioningLine: One concise client-facing positioning line, max 160 chars.
+      searchTags     : JSON array of concise, comma-free search tags. Use [] when none are stated.
+      locationNotes  : Context not captured by the address (e.g. transport access, freight). Max 200 chars.
+      amenities      : Comma-separated amenity tags visible in the document
+                       (e.g. "Rooftop terrace, Built-in bar, Green room").
+
+      maxCapacity    : Largest total headcount for the whole venue. Positive integer.
+      standingCapacity : Standing/cocktail figure when stated.
+      seatedCapacity   : Seated/banquet figure when stated.
+      classroomCapacity : Classroom layout figure when stated.
+      conferenceCapacity : Boardroom/conference layout figure when stated.
+      cocktailCapacity : Cocktail configuration capacity when stated.
+      rooms          : JSON array of room objects with name, seated, standing and notes.
+                       Use [] when the document has no room breakdown.
+      floorPlanAccess: Vehicle access, loading, and floor-plan constraints, max 1000 chars.
 
       cateringPolicy : EXACTLY one of:
                        In-house catering only | External catering only |
                        In-house and external catering both allowed | Catering not specified
+      cateringNotes  : Kitchen facilities, alcohol permissions, and service arrangements, max 1500 chars.
+      cateringFormats: JSON array of the catering formats stated in the document. Use [] when none.
 
       kosherAvailable, halalAvailable, veganAvailable,
       builtInAv, wifi, projector, riggingPoints,
@@ -112,6 +120,8 @@ class DocumentClassifier {
 
       internetBandwidthMbps : Integer Mbps when stated.
       outdoorSpaceSqm       : Outdoor area in square metres when stated.
+      technicalNotes        : Production capabilities, restrictions, and supplier arrangements, max 1500 chars.
+      technicalSpecifications: JSON array of objects with name and value. Use [] when none are listed.
       parkingSpaces         : Number of parking spaces when stated.
       setupHoursBefore      : Setup time in hours before the event (decimal).
       teardownHoursAfter    : Teardown time in hours after the event (decimal).
@@ -122,6 +132,10 @@ class DocumentClassifier {
       currency       : ISO 4217 code. Derive from symbol: £→GBP, €→EUR, $→USD.
       minimumSpend   : Minimum F&B or hire spend as a number (no currency symbol).
       rentalFeeIndicative : Indicative hire fee as a number (no currency symbol).
+      priceLines     : JSON array of objects with name, amount and unit. Use [] when no price lines
+                       are stated. Amount must be numeric and unit should preserve wording such as
+                       "per day" or "per hour".
+      commercialTerms: Commercial terms that affect the hire price, max 1500 chars.
 
       instagramHandle     : Instagram handle including @ (e.g. @venuename).
       googleRating        : Numeric rating 0.0–5.0.
@@ -178,10 +192,10 @@ class DocumentClassifier {
           .call()
           .entity(VenueExtraction.class);
 
-      log.debug("classified {}: name={}, venueType={}, confidence={}",
+      log.debug("classified {}: name={}, category={}, confidence={}",
           fileName,
           result != null ? result.name() : null,
-          result != null ? result.venueType() : null,
+          result != null ? result.category() : null,
           result != null ? result.confidence() : null);
       return result;
     } catch (final Exception ex) {

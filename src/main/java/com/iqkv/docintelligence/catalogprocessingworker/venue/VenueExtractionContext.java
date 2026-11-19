@@ -184,23 +184,32 @@ class VenueExtractionContext {
   String buildMetadata(final VenueExtraction ex) {
     final List<MetadataItem> items = new ArrayList<>();
     if (ex != null) {
+      // ── Venue profile ──────────────────────────────────────────────────────
+      addItem(items, "profile", "category", ex.category());
+      addItem(items, "profile", "country", ex.country());
+      addItem(items, "profile", "positioning_line", ex.positioningLine());
+      addArrayItems(items, "profile", "search_tags", ex.searchTags());
+
       // ── Basic info ──────────────────────────────────────────────────────────
       addItem(items, "basic", "location_notes", ex.locationNotes());
-      addItem(items, "basic", "amenities", splitAmenities(ex.amenities()));
-
-      // ── Venue type ──────────────────────────────────────────────────────────
-      addItem(items, "venue_type", "venue_type", ex.venueType() != null
-          ? List.of(ex.venueType()) : null);
+      addArrayItems(items, "basic", "amenities", splitAmenities(ex.amenities()));
 
       // ── Capacity ────────────────────────────────────────────────────────────
       addItem(items, "capacity", "max_total", ex.maxCapacity());
-      addItem(items, "capacity", "configurations.cocktail", ex.standingCapacity());
+      addItem(items, "capacity", "configurations.cocktail",
+          ex.cocktailCapacity() != null ? ex.cocktailCapacity() : ex.standingCapacity());
       addItem(items, "capacity", "configurations.banquet", ex.seatedCapacity());
       addItem(items, "capacity", "configurations.classroom", ex.classroomCapacity());
       addItem(items, "capacity", "configurations.conference", ex.conferenceCapacity());
+      addItem(items, "capacity", "configurations.seated", ex.seatedCapacity());
+      addItem(items, "capacity", "configurations.standing", ex.standingCapacity());
+      addArrayItems(items, "capacity", "rooms", ex.rooms());
+      addItem(items, "capacity", "floor_plan_access", ex.floorPlanAccess());
 
       // ── Catering ────────────────────────────────────────────────────────────
       addItem(items, "catering", "policy", ex.cateringPolicy());
+      addItem(items, "catering", "notes", ex.cateringNotes());
+      addArrayItems(items, "catering", "formats", ex.cateringFormats());
       addItem(items, "catering", "kosher_available", ex.kosherAvailable());
       addItem(items, "catering", "halal_available", ex.halalAvailable());
       addItem(items, "catering", "vegan_available", ex.veganAvailable());
@@ -210,6 +219,8 @@ class VenueExtractionContext {
       addItem(items, "av_tech", "wifi", ex.wifi());
       addItem(items, "av_tech", "rigging_points", ex.riggingPoints());
       addItem(items, "av_tech", "internet_bandwidth_mbps", ex.internetBandwidthMbps());
+      addItem(items, "technical", "notes", ex.technicalNotes());
+      addArrayItems(items, "technical", "specifications", ex.technicalSpecifications());
 
       // ── Accessibility ───────────────────────────────────────────────────────
       addItem(items, "accessibility", "ada_compliant", ex.adaCompliant());
@@ -238,6 +249,8 @@ class VenueExtractionContext {
       addItem(items, "pricing", "currency", ex.currency());
       addItem(items, "pricing", "minimum_spend", ex.minimumSpend());
       addItem(items, "pricing", "rental_fee_indicative", ex.rentalFeeIndicative());
+      addArrayItems(items, "pricing", "price_lines", ex.priceLines());
+      addItem(items, "pricing", "commercial_terms", ex.commercialTerms());
 
       // ── Social & online ─────────────────────────────────────────────────────
       addItem(items, "social", "instagram_handle", ex.instagramHandle());
@@ -279,6 +292,16 @@ class VenueExtractionContext {
                               final String group, final String field, final Object value) {
     if (value != null) {
       items.add(new MetadataItem(group, field, value));
+    }
+  }
+
+  private static void addArrayItems(final List<MetadataItem> items,
+                                    final String group, final String field, final List<?> values) {
+    if (values == null) {
+      return;
+    }
+    for (final Object value : values) {
+      addItem(items, group, field, value);
     }
   }
 
