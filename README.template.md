@@ -29,11 +29,11 @@ Any failure marks the asset `FAILED` with the exception message, publishes a fai
 
 `VenueExtractionStrategyRouter` selects the first strategy whose `supports()` matches the asset's MIME type; `NoInferenceStrategy` is registered last and always matches, so selection never fails.
 
-| Content types                                                                                          | Strategy                        | Behaviour                                                                                       |
-| :----------------------------------------------------------------------------------------------------- | :------------------------------ | :---------------------------------------------------------------------------------------------- |
-| `application/pdf`, `application/msword`, `…wordprocessingml.document`, `text/plain`                    | `RichDocumentExtractionStrategy` | Download from MinIO, extract prose with Apache Tika, run the full `DocumentClassifier` pipeline |
-| `text/csv`, `application/csv`, `application/vnd.ms-excel`, `…spreadsheetml.sheet`                      | `TabularDataExtractionStrategy`  | Tika text plus a spreadsheet structural hint prepended to the model message                     |
-| images and any other type                                                                              | `NoInferenceStrategy`            | No download, no Tika, no LLM — the venue is named from the filename with confidence `0.1`       |
+| Content types                                                                       | Strategy                         | Behaviour                                                                                       |
+| :---------------------------------------------------------------------------------- | :------------------------------- | :---------------------------------------------------------------------------------------------- |
+| `application/pdf`, `application/msword`, `…wordprocessingml.document`, `text/plain` | `RichDocumentExtractionStrategy` | Download from MinIO, extract prose with Apache Tika, run the full `DocumentClassifier` pipeline |
+| `text/csv`, `application/csv`, `application/vnd.ms-excel`, `…spreadsheetml.sheet`   | `TabularDataExtractionStrategy`  | Tika text plus a spreadsheet structural hint prepended to the model message                     |
+| images and any other type                                                           | `NoInferenceStrategy`            | No download, no Tika, no LLM — the venue is named from the filename with confidence `0.1`       |
 
 `DocumentClassifier` sends the first 8 000 characters of extracted text (truncated at a word boundary) to Ollama and maps the JSON reply onto `VenueExtraction`, returning `null` on blank input or model failure so the caller can fall back to heuristics. Name resolution is LLM name → first non-blank text line → filename without extension; confidence is clamped to `[0.0, 1.0]` (default `0.3`). `VenueExtractionContext` builds the metadata document with the same `{"group","field","value"}` item schema the master-venue catalog uses.
 
@@ -112,28 +112,28 @@ docker compose up -d
 
 ## Environment Variables
 
-| Variable                                            | Default                  | Description                                        |
-| :-------------------------------------------------- | :----------------------- | :------------------------------------------------- |
-| `DB_HOST`                                           | `localhost`              | PostgreSQL host                                    |
-| `DB_PORT`                                           | `5432`                   | PostgreSQL port                                    |
-| `DB_NAME`                                           | `catalogservice`         | Database name                                      |
-| `DB_USERNAME`                                       | `svc_catalog_dba`        | Database user                                      |
-| `DB_PASSWORD`                                       | `svc_catalog_dba`        | Database password                                  |
-| `RABBITMQ_HOST`                                     | `localhost`              | RabbitMQ host                                      |
-| `RABBITMQ_PORT`                                     | `5672`                   | RabbitMQ AMQP port                                 |
-| `RABBITMQ_USERNAME`                                 | `svc_catalog_rmq`        | RabbitMQ user                                      |
-| `RABBITMQ_PASSWORD`                                 | `svc_catalog_rmq`        | RabbitMQ password                                  |
-| `MESSAGING_ENABLED`                                 | `false`                  | Enables the RabbitMQ consumer and topology         |
-| `OBJECTSTORAGE_ENDPOINT`                            | `http://localhost:9000`  | MinIO / S3 endpoint                                |
-| `OBJECTSTORAGE_ACCESS_KEY`                          | `iqkv`                   | Object storage access key                          |
-| `OBJECTSTORAGE_SECRET_KEY`                          | `iqkv_password`          | Object storage secret key                          |
-| `OBJECTSTORAGE_BUCKET_NAME`                         | `catalog-assets`         | Shared private bucket (must match the catalog)     |
-| `SPRING_PROFILES_ACTIVE`                            | `local`                  | Active Spring profile                              |
-| `SPRING_AI_OLLAMA_BASE_URL`                         | `http://localhost:11434` | Ollama server URL                                  |
-| `SPRING_AI_OLLAMA_CHAT_OPTIONS_MODEL`               | `llama3.2`               | Chat model used for document classification        |
-| `SPRING_AI_OLLAMA_EMBEDDING_MODEL`                  | `nomic-embed-text`       | Embedding model (must be pulled in Ollama first)   |
-| `IQKV_CATALOG_VENUE_EMBEDDING_BACKFILL_INTERVAL_MS` | `600000`                 | Delay (ms) between venue embedding backfill passes |
-| `IQKV_CATALOG_VENUE_TEXT_CONTENT_EMBEDDING_BACKFILL_INTERVAL_MS` | `600000`       | Delay (ms) between text-content embedding passes   |
+| Variable                                                         | Default                  | Description                                        |
+| :--------------------------------------------------------------- | :----------------------- | :------------------------------------------------- |
+| `DB_HOST`                                                        | `localhost`              | PostgreSQL host                                    |
+| `DB_PORT`                                                        | `5432`                   | PostgreSQL port                                    |
+| `DB_NAME`                                                        | `catalogservice`         | Database name                                      |
+| `DB_USERNAME`                                                    | `svc_catalog_dba`        | Database user                                      |
+| `DB_PASSWORD`                                                    | `svc_catalog_dba`        | Database password                                  |
+| `RABBITMQ_HOST`                                                  | `localhost`              | RabbitMQ host                                      |
+| `RABBITMQ_PORT`                                                  | `5672`                   | RabbitMQ AMQP port                                 |
+| `RABBITMQ_USERNAME`                                              | `svc_catalog_rmq`        | RabbitMQ user                                      |
+| `RABBITMQ_PASSWORD`                                              | `svc_catalog_rmq`        | RabbitMQ password                                  |
+| `MESSAGING_ENABLED`                                              | `false`                  | Enables the RabbitMQ consumer and topology         |
+| `OBJECTSTORAGE_ENDPOINT`                                         | `http://localhost:9000`  | MinIO / S3 endpoint                                |
+| `OBJECTSTORAGE_ACCESS_KEY`                                       | `iqkv`                   | Object storage access key                          |
+| `OBJECTSTORAGE_SECRET_KEY`                                       | `iqkv_password`          | Object storage secret key                          |
+| `OBJECTSTORAGE_BUCKET_NAME`                                      | `catalog-assets`         | Shared private bucket (must match the catalog)     |
+| `SPRING_PROFILES_ACTIVE`                                         | `local`                  | Active Spring profile                              |
+| `SPRING_AI_OLLAMA_BASE_URL`                                      | `http://localhost:11434` | Ollama server URL                                  |
+| `SPRING_AI_OLLAMA_CHAT_OPTIONS_MODEL`                            | `llama3.2`               | Chat model used for document classification        |
+| `SPRING_AI_OLLAMA_EMBEDDING_MODEL`                               | `nomic-embed-text`       | Embedding model (must be pulled in Ollama first)   |
+| `IQKV_CATALOG_VENUE_EMBEDDING_BACKFILL_INTERVAL_MS`              | `600000`                 | Delay (ms) between venue embedding backfill passes |
+| `IQKV_CATALOG_VENUE_TEXT_CONTENT_EMBEDDING_BACKFILL_INTERVAL_MS` | `600000`                 | Delay (ms) between text-content embedding passes   |
 
 > Copy `.env.example` to `.env.local` / `.env.uat` / `.env.prd` and fill in values per environment. The defaults point to a local Ollama instance — no API key needed for local development.
 

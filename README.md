@@ -37,11 +37,11 @@ Any failure marks the asset `FAILED` with the exception message, publishes a fai
 
 `VenueExtractionStrategyRouter` selects the first strategy whose `supports()` matches the asset's MIME type; `NoInferenceStrategy` is registered last and always matches, so selection never fails.
 
-| Content types                                                                      | Strategy                        | Behaviour                                                                                       |
-| :--------------------------------------------------------------------------------- | :------------------------------ | :---------------------------------------------------------------------------------------------- |
+| Content types                                                                       | Strategy                         | Behaviour                                                                                       |
+| :---------------------------------------------------------------------------------- | :------------------------------- | :---------------------------------------------------------------------------------------------- |
 | `application/pdf`, `application/msword`, `…wordprocessingml.document`, `text/plain` | `RichDocumentExtractionStrategy` | Download from MinIO, extract prose with Apache Tika, run the full `DocumentClassifier` pipeline |
-| `text/csv`, `application/csv`, `application/vnd.ms-excel`, `…spreadsheetml.sheet`  | `TabularDataExtractionStrategy`  | Tika text plus a spreadsheet structural hint prepended to the model message                     |
-| images and any other type                                                          | `NoInferenceStrategy`            | No download, no Tika, no LLM — the venue is named from the filename with confidence `0.1`       |
+| `text/csv`, `application/csv`, `application/vnd.ms-excel`, `…spreadsheetml.sheet`   | `TabularDataExtractionStrategy`  | Tika text plus a spreadsheet structural hint prepended to the model message                     |
+| images and any other type                                                           | `NoInferenceStrategy`            | No download, no Tika, no LLM — the venue is named from the filename with confidence `0.1`       |
 
 `DocumentClassifier` sends the first 8 000 characters of extracted text (truncated at a word boundary) to Ollama and maps the JSON reply onto `VenueExtraction`, returning `null` on blank input or model failure so the caller can fall back to heuristics. Name resolution is LLM name → first non-blank text line → filename without extension; confidence is clamped to `[0.0, 1.0]` (default `0.3`). `VenueExtractionContext` builds the metadata document with the same `{"group","field","value"}` item schema the master-venue catalog uses.
 
