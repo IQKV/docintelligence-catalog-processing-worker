@@ -157,7 +157,7 @@ ports:
 
 ```bash
 # Check logs
-docker logs foundation-catalog-dbgate-dev
+docker logs docintelligence-catalog-dbgate-dev
 
 # Verify connections file exists
 ls docker/dbgate/connections.jsonl
@@ -170,26 +170,26 @@ docker compose restart dbgate
 
 ```bash
 # Verify PostgreSQL is running and healthy
-docker ps --filter name=foundation-catalog-postgres-dev
+docker ps --filter name=docintelligence-catalog-postgres-dev
 
 # Check PostgreSQL logs
-docker logs foundation-catalog-postgres-dev
+docker logs docintelligence-catalog-postgres-dev
 
 # Test connection from DbGate container
-docker exec foundation-catalog-dbgate-dev ping postgres-catalog
+docker exec docintelligence-catalog-dbgate-dev ping postgres-catalog
 ```
 
 ### Can't connect to RabbitMQ
 
 ```bash
 # Verify RabbitMQ is running
-docker ps --filter name=foundation-catalog-rabbitmq-dev
+docker ps --filter name=docintelligence-catalog-rabbitmq-dev
 
 # Check RabbitMQ logs
-docker logs foundation-catalog-rabbitmq-dev
+docker logs docintelligence-catalog-rabbitmq-dev
 
 # Check management plugin is enabled
-docker exec foundation-catalog-rabbitmq-dev rabbitmq-plugins list
+docker exec docintelligence-catalog-rabbitmq-dev rabbitmq-plugins list
 ```
 
 ### Port 3100 already in use

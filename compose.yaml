@@ -55,7 +55,7 @@ services:
 
 networks:
   catalog-service-network:
-    name: foundation-catalog-network-dev
+    name: docintelligence-catalog-network-dev
     external: false
 
 volumes:

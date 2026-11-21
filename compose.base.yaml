@@ -3,7 +3,7 @@ services:
   # pgvector/pgvector image required — shares the catalog-service schema which has vector columns.
   postgres-catalog:
     image: pgvector/pgvector:pg17-bookworm
-    container_name: foundation-catalog-postgres-dev
+    container_name: docintelligence-catalog-postgres-dev
     environment:
       POSTGRES_DB: catalogservice
       POSTGRES_USER: svc_catalog_dba
@@ -44,7 +44,7 @@ services:
   # RabbitMQ for Catalog Processing Worker - Local Development
   rabbitmq-catalog:
     image: rabbitmq:3.13-management-alpine
-    container_name: foundation-catalog-rabbitmq-dev
+    container_name: docintelligence-catalog-rabbitmq-dev
     environment:
       RABBITMQ_DEFAULT_USER: svc_catalog_rmq
       RABBITMQ_DEFAULT_PASS: svc_catalog_rmq
@@ -69,7 +69,7 @@ services:
   # Shares the catalog-assets bucket with docintelligence-catalog-service.
   minio:
     image: pgsty/minio:latest
-    container_name: foundation-catalog-minio-dev
+    container_name: docintelligence-catalog-minio-dev
     command: server /data --console-address :9001
     environment:
       MINIO_ROOT_USER: iqkv
@@ -94,7 +94,7 @@ services:
   # MinIO bucket init — creates the catalog-assets bucket (private, served via presigned URLs)
   minio-init:
     image: pgsty/mc:latest
-    container_name: foundation-catalog-minio-init-dev
+    container_name: docintelligence-catalog-minio-init-dev
     depends_on:
       minio:
         condition: service_healthy
@@ -111,7 +111,7 @@ services:
   # DbGate - Database Administration Tool
   dbgate:
     image: dbgate/dbgate:5.3.3
-    container_name: foundation-catalog-dbgate-dev
+    container_name: docintelligence-catalog-dbgate-dev
     environment:
       WEB_ROOT: /
       LOGINS: "1"
@@ -223,7 +223,7 @@ services:
   # Ollama — local LLM inference
   ollama:
     image: ollama/ollama:latest
-    container_name: foundation-catalog-ollama-dev
+    container_name: docintelligence-catalog-ollama-dev
     environment:
       OLLAMA_ORIGINS: "http://localhost:8080,http://catalog-service:8080"
       OLLAMA_KEEP_ALIVE: -1
@@ -241,13 +241,13 @@ services:
       retries: 10
       start_period: 30s
     # Pull models after first start:
-    #   docker exec foundation-catalog-ollama-dev ollama pull llama3.2
-    #   docker exec foundation-catalog-ollama-dev ollama pull nomic-embed-text
+    #   docker exec docintelligence-catalog-ollama-dev ollama pull llama3.2
+    #   docker exec docintelligence-catalog-ollama-dev ollama pull nomic-embed-text
 
   # SonarQube for code quality analysis
   sonar:
     image: sonarqube:25.3.0.104237-community
-    container_name: foundation-catalog-sonarqube-dev
+    container_name: docintelligence-catalog-sonarqube-dev
     environment:
       - SONAR_FORCEAUTHENTICATION=false
     ports:
@@ -260,7 +260,7 @@ services:
   # Prometheus for metrics collection
   prometheus:
     image: prom/prometheus:latest
-    container_name: foundation-catalog-prometheus-dev
+    container_name: docintelligence-catalog-prometheus-dev
     volumes:
       - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
     ports:
@@ -272,7 +272,7 @@ services:
   # Grafana for metrics visualization
   grafana:
     image: grafana/grafana:latest
-    container_name: foundation-catalog-grafana-dev
+    container_name: docintelligence-catalog-grafana-dev
     volumes:
       - ./docker/grafana/provisioning:/etc/grafana/provisioning
     environment:
