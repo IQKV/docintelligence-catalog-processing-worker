@@ -42,7 +42,10 @@ mybatis:
 
 server:
   port: 8080
-  forward-headers-strategy: framework
+  request:
+    header:
+      forwarded:
+        strategy: framework
   shutdown: graceful
 
 management:
