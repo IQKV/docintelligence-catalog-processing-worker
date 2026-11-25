@@ -16,6 +16,7 @@
 
 package com.iqkv.docintelligence.catalogprocessingworker.venue;
 
+import com.iqkv.docintelligence.venue.Venue;
 import com.iqkv.docintelligence.venue.VenueAssetMapper;
 import com.iqkv.docintelligence.venue.VenueMapper;
 import org.springframework.core.annotation.Order;
@@ -38,7 +39,12 @@ class VenuePersistFilter implements VenueProcessingFilter {
 
   @Override
   public void apply(final VenueProcessingContext ctx) {
-    venueMapper.insert(ctx.venue());
-    assetMapper.linkVenue(ctx.asset().getId(), ctx.venue().getId());
+    // Set ownership fields before insert: the uploader owns the derived venue,
+    // and FILE_IMPORT venues are public by default (org-tenant behaviour).
+    final Venue venue = ctx.venue();
+    venue.setCreatedBy(ctx.asset().getUploadedBy());
+    venue.setVisibility(Venue.VISIBILITY_PUBLIC);
+    venueMapper.insert(venue);
+    assetMapper.linkVenue(ctx.asset().getId(), venue.getId());
   }
 }
